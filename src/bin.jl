@@ -19,7 +19,7 @@ struct Bin
 end
 
 function overlap_breadth(sequences::Vector{Sequence})
-    sort!(sequences, by=x -> first(x.span))
+    sort!(sequences; by=x -> first(x.span), alg=QuickSort)
     result = 0
     rightmost_end = 0
     for sequence in sequences

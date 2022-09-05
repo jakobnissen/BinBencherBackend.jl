@@ -69,16 +69,12 @@ function parse_bins(
     if binsplit_sep !== nothing
         itr = binsplit_tab_pairs(itr, binsplit_sep)
     end
-    result = Bin[]
     seqs_by_binname = Dict{SubString{String}, Vector{Sequence}}()
     for (binname, seqname) in itr
         seq = ref.sequence_by_name[seqname]
         push!(get!(valtype(seqs_by_binname), seqs_by_binname, binname), seq)
     end
-    for (binname, seqs) in seqs_by_binname
-        push!(result, Bin(binname, seqs, ref.genomeof))
-    end
-    result
+    [Bin(binname, seqs, ref.genomeof) for (binname, seqs) in seqs_by_binname]
 end
 
 struct ReferenceJSON

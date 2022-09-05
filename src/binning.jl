@@ -104,7 +104,8 @@ function Binning(bins_,
 end
 
 function check_disjoint(bins)
-    seen_seqs = Set{Sequence}()
+    nseq = sum(i -> length(i.sequences), bins)
+    seen_seqs = sizehint!(Set{Sequence}(), nseq)
     for bin in bins, seq in bin.sequences
         if seq in seen_seqs
             error("Sequence \"$(seq.name)\" seen twice in disjoint Binning")
@@ -142,9 +143,11 @@ function benchmark(
         rp_by_node[genome][bin] = recall_precision(genome, bin)
     end
     push!(counters, get_counts(rp_by_node, recalls, precisions))
+    uprank_dict = empty(rp_by_node)
     while length(rp_by_node) > 1 || only(keys(rp_by_node)).parent !== nothing
-        rp_by_node = uprank_rp_by_node(rp_by_node)
-        push!(counters, get_counts(rp_by_node, recalls, precisions))
+        uprank_rp_by_node!(uprank_dict, rp_by_node)
+        push!(counters, get_counts(uprank_dict, recalls, precisions))
+        (uprank_dict, rp_by_node) = (rp_by_node, uprank_dict)
     end
     counters
 end
@@ -189,13 +192,14 @@ function get_counts(
     counts
 end
 
-function uprank_rp_by_node(
-    rp_by_node::Dict{Node, Dict{Bin, Tuple{Float64, Float64}}},
-)
-    result = empty(rp_by_node)
+function uprank_rp_by_node!(
+    uprank_dict::T,
+    rp_by_node::T,
+) where {T <: Dict{Node, Dict{Bin, Tuple{Float64, Float64}}}}
+    empty!(uprank_dict)
     for (child, child_dict) in rp_by_node
         parent = child.parent::Clade
-        parent_dict = get!(valtype(result), result, parent)
+        parent_dict = get!(valtype(uprank_dict), uprank_dict, parent)
         for (bin, (old_recall, old_prec)) in child_dict
             (new_recall, new_prec) = get(parent_dict, bin, (0.0, 0.0))
             parent_dict[bin] = (
@@ -204,5 +208,5 @@ function uprank_rp_by_node(
             )
         end
     end
-    result
+    uprank_dict
 end
