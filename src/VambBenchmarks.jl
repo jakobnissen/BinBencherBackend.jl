@@ -16,6 +16,9 @@ vector(x) = x isa Vector ? x : vec(collect(x))
 imap(f) = x -> Iterators.map(f, x)
 ifilter(f) = x -> Iterators.filter(f, x)
 
+precompile(Reference, (IOStream,))
+precompile(Binning, (IOStream, Reference))
+
 export Sequence,
     Clade,
     Genome,
