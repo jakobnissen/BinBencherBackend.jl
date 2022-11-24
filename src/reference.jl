@@ -83,13 +83,20 @@ struct ReferenceJSON
 end
 StructTypes.StructType(::Type{ReferenceJSON}) = StructTypes.Struct()
 
+# This is currently type unstable (Julia #46557), but its instability is
+# shielded by the function barrier of this function.
+function n_seqs(x::ReferenceJSON)::Int
+    v = sum(values(x.genomes); init=0) do v1
+        Int(sum(i -> length(last(i)), values(v1); init=0))::Int
+    end
+    Int(v)
+end
+
 function Reference(io::IO)
     json_struct = JSON3.read(io, ReferenceJSON)
     ref = Reference()
 
-    nseqs = sum(values(json_struct.genomes)) do v1
-        sum(i -> length(i[2]), values(v1))
-    end
+    nseqs = n_seqs(json_struct)
     sizehint!(ref.genomeof, nseqs)
     sizehint!(ref.sequence_by_name, nseqs)
 

@@ -17,15 +17,9 @@ vector(x) = x isa Vector ? x : vec(collect(x))
 imap(f) = x -> Iterators.map(f, x)
 ifilter(f) = x -> Iterators.filter(f, x)
 
-@precompile_all_calls begin
-    ref = open(joinpath(dirname(dirname(pathof(VambBenchmarks))), "files", "ref.json")) do io
-        Reference(io)
-    end
-    bins = open(joinpath(dirname(dirname(pathof(VambBenchmarks))), "files", "clusters.tsv")) do io
-        Binning(io, ref; binsplit_separator='c')
-    end
-    print_matrix(IOBuffer(), bins, 1)
-end
+include("workload.jl")
+
+@precompile_all_calls exercise()
 
 export Sequence,
     Clade,
