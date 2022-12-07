@@ -110,7 +110,7 @@ function check_disjoint(bins)
     seen_seqs = sizehint!(Set{Sequence}(), nseq)
     for bin in bins, seq in bin.sequences
         if seq in seen_seqs
-            error("Sequence \"$(seq.name)\" seen twice in disjoint Binning")
+            error(lazy"Sequence \"$(seq.name)\" seen twice in disjoint Binning")
         end
         push!(seen_seqs, seq)
     end
@@ -121,9 +121,9 @@ function validate_recall_precision(xs)
     s = Set{Float64}()
     for x_ in xs
         x = Float64(x_)
-        x in s && error("Recall/precision value $x present multiple times")
+        x in s && error(lazy"Recall/precision value $x present multiple times")
         if !isfinite(x) || x <= 0.0 || x > 1.0
-            error("Recall precision value $x is not finite in (0,1]")
+            error(lazy"Recall precision value $x is not finite in (0,1]")
         end
         push!(s, x)
     end

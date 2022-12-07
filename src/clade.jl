@@ -9,10 +9,10 @@ mutable struct Clade{G}
 
     function Clade(name::String, child::Union{Clade{G}, G}) where G
         (rank, ngenomes) = if child isa G
-            isdefined(child, :parent) && error("Child $(child.name) already has parent")
+            isdefined(child, :parent) && error(lazy"Child $(child.name) already has parent")
             (1, 1)
         else
-            child.parent === nothing || error("Child $(child.name) already has parent")
+            child.parent === nothing || error(lazy"Child $(child.name) already has parent")
             (child.rank + 1, child.ngenomes)
         end
         instance = new{G}(name, rank, ngenomes, nothing, [child])

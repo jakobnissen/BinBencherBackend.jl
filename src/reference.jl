@@ -38,7 +38,7 @@ function nranks(x::Reference)
 end
 
 function add_genome!(ref::Reference, genome::Genome)
-    in(genome, ref.genomes) && error("Genome $(genome.name) already in reference")
+    in(genome, ref.genomes) && error(lazy"Genome $(genome.name) already in reference")
     push!(ref.genomes, genome)
     ref
 end
@@ -49,12 +49,12 @@ function add_sequence!(ref::Reference, seq::Sequence, genome::Genome)
         "Attempted to add sequence $(seq.name) with source $(seq.subject) " *
         "to genome $(genome.name), but genome has no such source"
     )
-    in(genome, ref.genomes) || error("Genome $(genome.name) not in reference")
+    in(genome, ref.genomes) || error(lazy"Genome $(genome.name) not in reference")
     source < last(seq.span) && error(
         "Attempted to add sequence $(seq.name) with span $(first(seq.span)):$(last(seq.span)) " *
         "to subject $(seq.subject), but the subject only has length $source"
     )
-    haskey(ref.genomeof, seq) && error("Reference already has sequence $(seq.name)")
+    haskey(ref.genomeof, seq) && error(lazy"Reference already has sequence $(seq.name)")
     ref.genomeof[seq] = genome
     ref.sequence_by_name[seq.name] = seq
     ref

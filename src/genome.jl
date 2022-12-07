@@ -30,7 +30,7 @@ Base.hash(x::Genome, h::UInt) = hash(x.name, h ⊻ UInt(21323125590))
 
 function add_source!(genome::Genome, source::String, len::Integer)
     if haskey(genome.sources, source)
-        error("Genome $(genome.name) already have source $(source)")
+        error(lazy"Genome $(genome.name) already have source $(source)")
     end
     genome.sources[source] = Int(len)
     genome.breadth += Int(len)
