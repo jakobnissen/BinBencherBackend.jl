@@ -88,21 +88,34 @@ function Binning(
     filter!(bins) do bin
         nseqs(bin) >= min_seqs && bin.breadth >= min_size
     end
-    Binning(bins, ref; recalls_=recalls, precisions_=precisions, disjoint)
+    Binning(bins, ref; recalls=recalls, precisions=precisions, disjoint)
 end
 
 function Binning(bins_,
     ref::Reference;
-    recalls_=DEFAULT_RECALLS,
-    precisions_=DEFAULT_PRECISIONS,
+    recalls=DEFAULT_RECALLS,
+    precisions=DEFAULT_PRECISIONS,
     disjoint::Bool = true
 )
-    recalls = validate_recall_precision(recalls_)
-    precisions = validate_recall_precision(precisions_)
+    checked_recalls = validate_recall_precision(recalls)
+    checked_precisions = validate_recall_precision(precisions)
     bins = vector(bins_)
     disjoint && check_disjoint(bins)
-    counters = benchmark(ref, bins, recalls, precisions)
-    Binning(ref, bins, counters, recalls, precisions)
+    counters = benchmark(ref, bins, checked_recalls, checked_precisions)
+    Binning(ref, bins, counters, checked_recalls, checked_precisions)
+end
+
+function gold_standard(
+    ref::Reference;
+    recalls=DEFAULT_RECALLS,
+    precisions=DEFAULT_PRECISIONS
+)::Binning
+    sequences_of_genome = Dict{Genome, Vector{Sequence}}()
+    for (sequence, genome) in ref.genomeof
+        push!(get!(valtype(sequences_of_genome), sequences_of_genome, genome), sequence)
+    end
+    bins = [Bin("bin_" * genome.name, seqs, ref.genomeof) for (genome, seqs) in sequences_of_genome]
+    Binning(bins, ref; recalls=recalls, precisions=precisions, disjoint=false)
 end
 
 function check_disjoint(bins)
