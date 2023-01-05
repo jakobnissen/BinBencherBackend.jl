@@ -1,17 +1,8 @@
 struct Reference
     genomes::Set{Genome}
-    genomeof::Dict{Sequence, Genome}
+    targets::Dict{Sequence, Target}
     sequence_by_name::Dict{String, Sequence}
-    clades::Vector{Vector{Clade{Genome}}}
-end
-
-function Reference()
-    Reference(
-        Set{Genome}(),
-        Dict{Sequence, Genome}(),
-        Dict{String, Sequence}(),
-        Vector{Clade{Genome}}[]
-    )
+    top_clade::Clade{Genome}
 end
 
 Base.show(io::IO, ::Reference) = print(io, "Reference()")
@@ -28,13 +19,11 @@ function Base.show(io::IO, ::MIME"text/plain", x::Reference)
     end
 end
 
-top_clade(x::Reference) = only(last(x.clades))
-
 ngenomes(x::Reference) = length(x.genomes)
-nseqs(x::Reference) = length(x.genomeof)
+nseqs(x::Reference) = length(x.sequence_by_name)
 function nranks(x::Reference)
     isempty(x.genomes) && return 0
-    length(x.clades) + 1
+    x.top_clade.rank + 1
 end
 
 function add_genome!(ref::Reference, genome::Genome)
@@ -43,19 +32,22 @@ function add_genome!(ref::Reference, genome::Genome)
     ref
 end
 
-function add_sequence!(ref::Reference, seq::Sequence, genome::Genome)
-    source = get(genome.sources, seq.subject, nothing)
-    source === nothing && error(
-        "Attempted to add sequence $(seq.name) with source $(seq.subject) " *
-        "to genome $(genome.name), but genome has no such source"
-    )
-    in(genome, ref.genomes) || error(lazy"Genome $(genome.name) not in reference")
-    source < last(seq.span) && error(
-        "Attempted to add sequence $(seq.name) with span $(first(seq.span)):$(last(seq.span)) " *
-        "to subject $(seq.subject), but the subject only has length $source"
-    )
-    haskey(ref.genomeof, seq) && error(lazy"Reference already has sequence $(seq.name)")
-    ref.genomeof[seq] = genome
+function add_sequence!(ref::Reference, seq::Sequence, target::Target)
+    haskey(ref.targets, seq) && error(lazy"Reference already has sequence $(seq.name)")
+    if target isa Tuple{Genome, String, UnitRange}
+        (genome, subject, span) = target
+        source = get(genome.sources, subject, nothing)
+        source === nothing && error(
+            "Attempted to add sequence $(seq.name) with source $subject " *
+            "to genome $(genome.name), but genome has no such source"
+        )
+        in(genome, ref.genomes) || error(lazy"Genome $(genome.name) not in reference")
+        source < last(span) && error(
+            "Attempted to add sequence $(seq.name) with span $span " *
+            "to subject $subject, but the subject only has length $source"
+        )
+    end
+    ref.targets[seq] = target
     ref.sequence_by_name[seq.name] = seq
     ref
 end
@@ -74,104 +66,142 @@ function parse_bins(
         seq = ref.sequence_by_name[seqname]
         push!(get!(valtype(seqs_by_binname), seqs_by_binname, binname), seq)
     end
-    [Bin(binname, seqs, ref.genomeof) for (binname, seqs) in seqs_by_binname]
+    [Bin(binname, seqs, ref.targets) for (binname, seqs) in seqs_by_binname]
 end
 
+const Pairs{A, B} = Vector{Tuple{A, B}}
+
+ # Imprecise mappings: Sequences mapping to simply a Genome or Clade (i.e Node)
+const ImpreciseMappingJSON = Pairs{
+    # Node name, node rank
+    Tuple{String, Int},
+    # Vector of (sequence_name, sequence_length)
+    Pairs{String, Int}
+}
+
+# Precise mappings. These maps to a specific area in a subject of a Genome
+const PreciseMappingJSON = Pairs{
+    # Genome name
+    String,
+    # Subjects
+    Pairs{
+        # Subject name, length
+        Tuple{String, Int},
+        # Seqname, seqlength, from, to
+        Vector{Tuple{String, Int, Int, Int}}
+    }
+}
+const SequenceJSON = Tuple{ImpreciseMappingJSON, PreciseMappingJSON}
+
 struct ReferenceJSON
-    genomes::Dict{String, Dict{String, Tuple{Int, Dict{String, Tuple{Int, Int}}}}}
-    taxmaps::Vector{Dict{String, Union{String, Nothing}}}
+    sequences::SequenceJSON
+    # A vector of dicts, representing taxonomic levels from Genome and upwards.
+    # Each dict is {child_name => parent_name}.
+    # The final dict must have only one unique parent name, which is the top clade.
+    taxmaps::Vector{Dict{String, String}}
 end
 StructTypes.StructType(::Type{ReferenceJSON}) = StructTypes.Struct()
 
 # This is currently type unstable (Julia #46557), but its instability is
 # shielded by the function barrier of this function.
 function n_seqs(x::ReferenceJSON)::Int
-    v = sum(values(x.genomes); init=0) do v1
-        Int(sum(i -> length(last(i)), values(v1); init=0))::Int
+    v = sum(values(x.sequences); init=0) do subdict
+        Int(sum(length, values(subdict); init=0))::Int
     end
     Int(v)
 end
 
 function Reference(io::IO)
     json_struct = JSON3.read(io, ReferenceJSON)
-    ref = Reference()
-
     nseqs = n_seqs(json_struct)
-    sizehint!(ref.genomeof, nseqs)
-    sizehint!(ref.sequence_by_name, nseqs)
+    targets = sizehint!(Dict{Sequence, Target}(), nseqs)
 
-    # Parse genomes
-    for (genomename, sourcesdict) in json_struct.genomes
-        genome = Genome(genomename)
-        add_genome!(ref, genome)
-        for (sourcename, (sourcelen, contigdict)) in sourcesdict
-            add_source!(genome, sourcename, sourcelen)
-            for (seqname, (start, stop)) in contigdict
-                seq = Sequence(seqname, sourcename, start:stop)
-                add_sequence!(ref, seq, genome)
+    # Parse taxonomy, update genomes and clades
+    (genomes, top_clade) = parse_taxonomy(json_struct.taxmaps)
+
+    clades_by_rank_name = Dict{Tuple{Int, String}, Node}()
+    for node in all_children(top_clade)
+        clades_by_rank_name[(rank(node), node.name)] = node
+    end
+
+    # Parse sequences
+    (imprecise, precise) = json_struct.sequences
+    for ((clade_name, clade_rank), imprecise_sequences) in imprecise
+        clade = clades_by_rank_name[(clade_rank, clade_name)]
+        for (sequence_name, sequence_len) in imprecise_sequences
+            targets[Sequence(sequence_name, sequence_len)] = clade
+        end
+    end
+    for (genome_name, subject_vector) in precise
+        genome = clades_by_rank_name[(0, genome_name)]
+        for ((subject_name, subject_len), precise_sequences) in subject_vector
+            add_source!(genome, subject_name, subject_len)
+            for (sequence_name, sequence_len, map_from, map_to) in precise_sequences
+                sequence = Sequence(sequence_name, sequence_len)
+                targets[sequence] = (genome, subject_name, map_from:map_to)
             end
         end
     end
-    copy!(ref.clades, parse_taxonomy(ref.genomes, json_struct.taxmaps))
-    ref
+    sequence_by_name = Dict(seq.name => seq for seq in keys(targets))
+    Reference(genomes, targets, sequence_by_name, top_clade)
 end
 
 function save(io::IO, ref::Reference)
-    json_dict = Dict{Symbol, Any}(:genomes => Dict(), :taxmaps => [])
-    genome_dict = json_dict[:genomes]
-    for genome in ref.genomes
-        source_dict = Dict()
-        genome_dict[genome.name] = source_dict
-        for (sourcename, len) in genome.sources
-            source_dict[sourcename] = (len, Dict())
+    # Make taxmaps
+    taxmaps = [Dict{String, String}() for _ in 1:nranks(ref)-1]
+    for node in last(Iterators.peel(all_children(ref.top_clade))) # skip top clade
+        taxmaps[node.rank + 1][node.name] = node.parent.name
+    end
+
+    # Make Dict versions of the SequenceJSON types, which we convert to Vector later.
+    # JSON dict keys must be String, so we use Vector in SequenceJSON.
+    imprecise = Dict{Tuple{String, Int}, Vector{Tuple{String, Int}}}()
+    precise = Dict{String, Dict{Tuple{String, Int}, Vector{Tuple{String, Int, Int, Int}}}}()
+    for (sequence, target) in ref.targets
+        if target isa Union{Clade, Genome}
+            key = (target.name, rank(target))
+            push!(get!(valtype(imprecise), imprecise, key), (sequence.name, length(sequence)))
+        else
+            (genome, subject, span) = target
+            subject_dict = get!(valtype(precise), precise, genome.name)
+            key = (subject, genome.sources[subject])
+            sequences = get!(valtype(subject_dict), subject_dict, key)
+            push!(sequences, (sequence.name, length(sequence), first(span), last(span)))
         end
     end
-    for (seq, genome) in ref.genomeof
-        genome_dict[genome.name][seq.subject][2][seq.name] = extrema(seq.span)
-    end
-    children = Set{Node}(ref.genomes)
-    parents = Set{Node}()
-    while !isempty(children)
-        d = Dict()
-        for child in children
-            parent = child.parent
-            d[child] = parent
-            parent === nothing || push!(parents, parent)
-        end
-        push!(json_dict[:taxmaps], d)
-        children, parents = parents, children
-        empty!(parents)
-    end
-    JSON3.write(io, json_dict)
+    imprecise_vec = collect(imprecise)
+    precise_vec = [k: collect(v) for (k,v) in precise]
+    JSON3.write(io, Dict(:taxmaps => taxmaps, :sequences => (imprecise_vec, precise_vec)))
 end
 
 function parse_taxonomy(
-    genomes::Set{Genome},
-    dict::Vector{Dict{String, Union{String, Nothing}}}
-)::Vector{Vector{Clade{Genome}}}
-    child_by_name = Dict{String, Node}(g.name => g for g in genomes)
+    dicts::Vector{Dict{String, String}}
+)::Tuple{Set{Genome}, Clade{Genome}}
+    isempty(dicts) && error("There must be at least one taxmap")
+    child_by_name = Dict{String, Node}((name => Genome(name) for name in keys(first(dicts))))
     parent_by_name = empty(child_by_name)
-    result = Vector{Vector{Clade{Genome}}}()
-    for (rank, taxmap) in enumerate(dict)
-        cladeset = Clade{Genome}[]
+    genomes = Set(values(child_by_name))
+    clades = Vector{Clade{Genome}}[]
+    for (rank, taxmap) in enumerate(dicts)
+        clades_this_rank = Clade{Genome}[]
         for (child_name, maybe_parent_name) in taxmap
             # Get child
             child = get(child_by_name, child_name, nothing)
             child === nothing && error(
                 "At rank $rank, found child name \"$child_name\", but this does not exist " *
-                "on the previous rank."
+                "as a parent on the previous rank."
             )
+
             # Create parent if it does not already exist
             parent_name = maybe_parent_name === nothing ? child_name : maybe_parent_name
             parent = get(parent_by_name, parent_name, nothing)::Union{Clade{Genome}, Nothing}
             if parent === nothing
                 parent = Clade(parent_name, child)
                 parent_by_name[parent_name] = parent
-                push!(cladeset, parent)
-            else
-                add_child!(parent, child)
-                child.parent = parent::Clade{Genome}
+                push!(clades_this_rank, parent)
             end
+            add_child!(parent, child)
+            child.parent = parent::Clade{Genome}
         end
         # Enforce all childrens have parents
         for child in values(child_by_name)
@@ -181,8 +211,9 @@ function parse_taxonomy(
         end
         parent_by_name, child_by_name = child_by_name, parent_by_name
         empty!(parent_by_name)
-        push!(result, cladeset)
+        push!(clades, clades_this_rank)
     end
+
     # If there isn't exactly one remaining clade at the top, make one.
     if length(child_by_name) != 1 || only(values(child_by_name)) isa Genome
         top = Clade("top", first(values(child_by_name)))
@@ -195,9 +226,9 @@ function parse_taxonomy(
         while nchildren(top) == 1 && only(top.children).name == top.name
             top = only(top.children)::Clade{Genome}
             top.parent = nothing
-            pop!(result)
+            pop!(clades)
         end
     end
-    @assert length(last(result)) == 1
-    return result
+    top_clade = only(last(clades))
+    return (genomes, top_clade)
 end

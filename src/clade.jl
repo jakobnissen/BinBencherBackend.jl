@@ -20,6 +20,7 @@ mutable struct Clade{G}
         return instance
     end
 end
+rank(x::Clade) = x.rank
 
 const RANKS = [
     "OTU",
@@ -57,3 +58,4 @@ AbstractTrees.parent(x::Clade) = x.parent
 AbstractTrees.treebreadth(x::Clade) = x.ngenomes
 nchildren(x::Clade) = length(x.children)
 istop(x::Clade) = isnothing(x.parent)
+all_children(x::Clade) = AbstractTrees.PreOrderDFS(x)

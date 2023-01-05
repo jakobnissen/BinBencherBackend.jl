@@ -10,8 +10,13 @@ mutable struct Genome
         new(String(name), Dict{String, Int}(), 0)
     end
 end
+rank(::Genome) = 0
 
 const Node = Union{Genome, Clade{Genome}}
+
+# In the reference, a sequence can be assigned to either a genome or a clade,
+# or a specific genome, subject and position within that subject
+const Target = Union{Genome, Clade{Genome}, Tuple{Genome, String, UnitRange{Int}}}
 
 function add_child!(c::Clade{Genome}, g::Node)
     children = c.children

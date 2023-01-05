@@ -86,7 +86,7 @@ function Binning(
 )
     bins = parse_bins(io, ref, binsplit_separator)
     filter!(bins) do bin
-        nseqs(bin) >= min_seqs && bin.breadth >= min_size
+        nseqs(bin) >= min_seqs && bin.length_sum >= min_size
     end
     Binning(bins, ref; recalls=recalls, precisions=precisions, disjoint)
 end
@@ -110,11 +110,12 @@ function gold_standard(
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS
 )::Binning
-    sequences_of_genome = Dict{Genome, Vector{Sequence}}()
-    for (sequence, genome) in ref.genomeof
-        push!(get!(valtype(sequences_of_genome), sequences_of_genome, genome), sequence)
+    sequences_of_node = Dict{Node, Vector{Sequence}}()
+    for (sequence, target) in ref.targets
+        node = target isa Node ? target : first(target)
+        push!(get!(valtype(sequences_of_node), sequences_of_node, node), sequence)
     end
-    bins = [Bin("bin_" * genome.name, seqs, ref.genomeof) for (genome, seqs) in sequences_of_genome]
+    bins = [Bin("bin_" * genome.name, seqs, ref.targets) for (genome, seqs) in sequences_of_node]
     Binning(bins, ref; recalls=recalls, precisions=precisions, disjoint=false)
 end
 
@@ -154,8 +155,8 @@ function benchmark(
     rp_by_node = Dict{Node, Dict{Bin, Tuple{Float64, Float64}}}(
         g => Dict{Bin, Tuple{Float64, Float64}}() for g in ref.genomes
     )
-    for bin in bins, genome in keys(bin.intersections)
-        rp_by_node[genome][bin] = recall_precision(genome, bin)
+    for bin in bins, genome in keys(bin.bases_covered)
+        rp_by_node[genome][bin] = (get_recall(genome, bin), get_precision(genome, bin))
     end
     push!(counters, get_counts(rp_by_node, recalls, precisions))
     uprank_dict = empty(rp_by_node)
@@ -219,7 +220,7 @@ function uprank_rp_by_node!(
             (new_recall, new_prec) = get(parent_dict, bin, (0.0, 0.0))
             parent_dict[bin] = (
                 max(old_recall, new_recall),
-                old_prec + new_prec
+                old_prec + new_prec + (get(bin.length_sums, parent, 0) / bin.length_sum)
             )
         end
     end

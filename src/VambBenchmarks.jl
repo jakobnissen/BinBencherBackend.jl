@@ -19,7 +19,7 @@ ifilter(f) = x -> Iterators.filter(f, x)
 
 include("workload.jl")
 
-@precompile_all_calls exercise()
+# @precompile_all_calls exercise()
 
 export Sequence,
     Clade,
