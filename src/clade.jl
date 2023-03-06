@@ -9,16 +9,21 @@ mutable struct Clade{G}
 
     function Clade(name::String, child::Union{Clade{G}, G}) where G
         (rank, ngenomes) = if child isa G
-            isdefined(child, :parent) && error(lazy"Child $(child.name) already has parent")
+            (@isinit(child.parent)) && existing_parent_error(name, child.name, child.parent.name)
             (1, 1)
         else
-            child.parent === nothing || error(lazy"Child $(child.name) already has parent")
+            parent = child.parent
+            parent === nothing || existing_parent_error(name, child.name, parent.name)
             (child.rank + 1, child.ngenomes)
         end
         instance = new{G}(name, rank, ngenomes, nothing, [child])
         child.parent = instance
         return instance
     end
+end
+
+@noinline function existing_parent_error(child_name, parent_name, other_parent_name)
+    error("Attempted to add parent \"$parent_name\" to child \"$child_name\", which already has parent \"$other_parent_name\"")
 end
 
 const RANKS = [

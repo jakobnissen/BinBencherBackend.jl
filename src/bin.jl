@@ -1,33 +1,35 @@
 struct Bin
     name::String
     sequences::Vector{Sequence}
-    intersections::Dict{Genome, Int}
+    # True positives (bases of genome covered)
+    # False positives (sum of lengths of sequences not mapping to genome)
+    intersections::Dict{Genome, Tuple{Int, Int}}
+    # Sum of lengths of sequences, cached for efficiency
     breadth::Int
-
-    function Bin(name::AbstractString, seqs, genomeof::Dict{Sequence, Genome})
-        sequences = vector(seqs)
-        intersections = Dict{Genome, Int}()
-        by_source = Dict{Tuple{Genome, String}, Vector{Sequence}}()
-        for seq in sequences
-            push!(get!(valtype(by_source), by_source, (genomeof[seq], seq.subject)), seq)
-        end
-        for ((genome, _), source_seqs) in by_source
-            intersections[genome] = get(intersections, genome, 0) + overlap_breadth(source_seqs)
-        end
-        new(String(name), sequences, intersections, sum(values(intersections), init=0))
-    end
 end
 
-function overlap_breadth(sequences::Vector{Sequence})
-    sort!(sequences; by=x -> first(x.span), alg=QuickSort)
-    result = 0
-    rightmost_end = 0
-    for sequence in sequences
-        result += max(last(sequence.span), rightmost_end) -
-            max(first(sequence.span), rightmost_end)
-        rightmost_end = max(rightmost_end, last(sequence.span))
+function Bin(
+    name::AbstractString,
+    sequences::Vector{Sequence},
+    reference_targets::Dict{String, Tuple{Sequence, Vector{Target}}}
+)
+    breadth = sum(i -> i.length, sequences, init=0)
+    spans = Dict{Source{Genome}, Vector{UnitRange{Int}}}()
+    by_genome = Dict{Genome, Set{Sequence}}()
+    for seq in sequences, (source, span) in last(reference_targets[seq.name])
+        push!(get!(valtype(spans), spans, source), span)
+        push!(get!(valtype(by_genome), by_genome, source.genome), seq)
     end
-    result
+    intersections = Dict{Genome, Tuple{Int, Int}}()
+    default = (0, 0)
+    for (source, ranges) in spans
+        (tp, fp) = get(intersections, source.genome, default)
+        intersections[source.genome] = (tp + overlap_breadth(ranges), fp)
+    end
+    for (genome, seqs) in by_genome
+        intersections[genome] = (intersections[genome][1], breadth - sum(i -> i.length, seqs, init=0))
+    end
+    Bin(String(name), sequences, intersections, breadth)
 end
 
 nseqs(x::Bin) = length(x.sequences)
@@ -48,10 +50,8 @@ function Base.show(io::IO, ::MIME"text/plain", x::Bin)
 end
 
 function confusion_matrix(genome::Genome, bin::Bin)
-    breadth = Int(bin.breadth)
-    tp = Int(get(bin.intersections, genome, 0))
-    fp = breadth - tp
-    fn = Int(genome.breadth) - tp
+    (tp, fp) = get(bin.intersections, genome, (0, bin.breadth))
+    fn = genome.breadth - tp
     (tp, fp, fn)
 end
 

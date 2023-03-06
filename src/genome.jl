@@ -1,26 +1,26 @@
-# Breadth is the total number of covered basepairs.
-mutable struct Genome
-    name::String
-    sources::Dict{String, Int}
-    breadth::Int
-    # This field is unassigned during construction, and later set.
-    parent::Clade{Genome}
+@lazy mutable struct Genome
+    const name::String
+    const sources::Set{Source{Genome}}
+    @lazy parent::Clade{Genome}
+    @lazy breadth::Int
 
     function Genome(name::AbstractString)
-        new(String(name), Dict{String, Int}(), 0)
+        new(String(name), Set{Source{Genome}}(), uninit, uninit)
     end
 end
 
+const Target = Tuple{Source{Genome}, UnitRange{Int}}
 const Node = Union{Genome, Clade{Genome}}
 
 function add_child!(c::Clade{Genome}, g::Node)
     children = c.children
     if g isa Genome
         push!(children::Vector{Genome}, g)
+        @init! g.parent = c
     else
         push!(children::Vector{Clade{Genome}}, g)
+        g.parent = c
     end
-    g.parent = c
     c.ngenomes += (g isa Genome ? 1 : g.ngenomes)
     c
 end
@@ -28,17 +28,23 @@ end
 Base.:(==)(g1::Genome, g2::Genome) = g1.name == g2.name
 Base.hash(x::Genome, h::UInt) = hash(x.name, h ⊻ UInt(21323125590))
 
-function add_source!(genome::Genome, source::String, len::Integer)
-    if haskey(genome.sources, source)
-        error(lazy"Genome $(genome.name) already have source $(source)")
-    end
-    genome.sources[source] = Int(len)
-    genome.breadth += Int(len)
+function add_source!(genome::Genome, name::AbstractString, length::Integer)
+    @isinit(genome.breadth) && error("Can't add source to genome after calling finish! on it.")
+    source = Source(genome, name, length)
+    in(source, genome.sources) && error(lazy"Genome $(genome.name) already have source $(source.name)")
+    push!(genome.sources, source)
     genome
 end
 
-function remove_source!(genome::Genome, source::String)
-    genome.breadth -= pop!(genome.sources, source)
+function finish!(genome::Genome)
+    @isinit(genome.breadth) && return genome
+    @isinit(genome.parent) || error(
+        lazy"finish! called on genome \"$(genome.name)\" without assigned parent."
+    )
+    for source in genome.sources
+        @isinit(source.n_covered) || finish!(source)
+    end
+    @init! genome.breadth = sum(i -> i.n_covered, genome.sources)
     genome
 end
 

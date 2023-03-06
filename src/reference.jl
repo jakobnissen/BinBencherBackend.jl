@@ -1,15 +1,14 @@
 struct Reference
     genomes::Set{Genome}
-    genomeof::Dict{Sequence, Genome}
-    sequence_by_name::Dict{String, Sequence}
+    # Sequence name => (sequence, targets)
+    targets_by_name::Dict{String, Tuple{Sequence, Vector{Target}}}
     clades::Vector{Vector{Clade{Genome}}}
 end
 
 function Reference()
     Reference(
         Set{Genome}(),
-        Dict{Sequence, Genome}(),
-        Dict{String, Sequence}(),
+        Dict{String, Tuple{Sequence, Vector{Target}}}(),
         Vector{Clade{Genome}}[]
     )
 end
@@ -29,9 +28,8 @@ function Base.show(io::IO, ::MIME"text/plain", x::Reference)
 end
 
 top_clade(x::Reference) = only(last(x.clades))
-
 ngenomes(x::Reference) = length(x.genomes)
-nseqs(x::Reference) = length(x.genomeof)
+nseqs(x::Reference) = length(x.targets_by_name)
 function nranks(x::Reference)
     isempty(x.genomes) && return 0
     length(x.clades) + 1
@@ -43,20 +41,13 @@ function add_genome!(ref::Reference, genome::Genome)
     ref
 end
 
-function add_sequence!(ref::Reference, seq::Sequence, genome::Genome)
-    source = get(genome.sources, seq.subject, nothing)
-    source === nothing && error(
-        "Attempted to add sequence $(seq.name) with source $(seq.subject) " *
-        "to genome $(genome.name), but genome has no such source"
-    )
-    in(genome, ref.genomes) || error(lazy"Genome $(genome.name) not in reference")
-    source < last(seq.span) && error(
-        "Attempted to add sequence $(seq.name) with span $(first(seq.span)):$(last(seq.span)) " *
-        "to subject $(seq.subject), but the subject only has length $source"
-    )
-    haskey(ref.genomeof, seq) && error(lazy"Reference already has sequence $(seq.name)")
-    ref.genomeof[seq] = genome
-    ref.sequence_by_name[seq.name] = seq
+function add_sequence!(ref::Reference, seq::Sequence, targets::Vector{Target})
+    for (source, span) in targets
+        add_sequence!(source, seq, span)
+    end
+    if last(get!(ref.targets_by_name, seq.name, (seq, targets))) !== targets
+        error(lazy"Duplicate sequence in reference: $(seq.name)")
+    end
     ref
 end
 
@@ -71,63 +62,80 @@ function parse_bins(
     end
     seqs_by_binname = Dict{SubString{String}, Vector{Sequence}}()
     for (binname, seqname) in itr
-        seq = ref.sequence_by_name[seqname]
+        (seq, _) = ref.targets_by_name[seqname]
         push!(get!(valtype(seqs_by_binname), seqs_by_binname, binname), seq)
     end
-    [Bin(binname, seqs, ref.genomeof) for (binname, seqs) in seqs_by_binname]
+    [Bin(binname, seqs, ref.targets_by_name) for (binname, seqs) in seqs_by_binname]
 end
 
 struct ReferenceJSON
-    genomes::Dict{String, Dict{String, Tuple{Int, Dict{String, Tuple{Int, Int}}}}}
+    # Genome => (subject => length)
+    genomes::Dict{String, Dict{String, Int}}
+    # Sequence => (sequence_length, [(subject, from, to)])
+    sequences::Dict{String, Tuple{Int, Vector{Tuple{String, Int, Int}}}}
+    # child => parent
     taxmaps::Vector{Dict{String, Union{String, Nothing}}}
 end
 StructTypes.StructType(::Type{ReferenceJSON}) = StructTypes.Struct()
-
-# This is currently type unstable (Julia #46557), but its instability is
-# shielded by the function barrier of this function.
-function n_seqs(x::ReferenceJSON)::Int
-    v = sum(values(x.genomes); init=0) do v1
-        Int(sum(i -> length(last(i)), values(v1); init=0))::Int
-    end
-    Int(v)
-end
 
 function Reference(io::IO)
     json_struct = JSON3.read(io, ReferenceJSON)
     ref = Reference()
 
-    nseqs = n_seqs(json_struct)
-    sizehint!(ref.genomeof, nseqs)
-    sizehint!(ref.sequence_by_name, nseqs)
-
     # Parse genomes
     for (genomename, sourcesdict) in json_struct.genomes
         genome = Genome(genomename)
         add_genome!(ref, genome)
-        for (sourcename, (sourcelen, contigdict)) in sourcesdict
-            add_source!(genome, sourcename, sourcelen)
-            for (seqname, (start, stop)) in contigdict
-                seq = Sequence(seqname, sourcename, start:stop)
-                add_sequence!(ref, seq, genome)
-            end
+        for (source_name, source_length) in sourcesdict
+            add_source!(genome, source_name, source_length)
         end
     end
+
+    # Check for unique sources
+    source_by_name = Dict{String, Source{Genome}}()
+    for genome in ref.genomes, source in genome.sources
+        if haskey(source_by_name, source.name)
+            error(
+                lazy"Duplicate source: \"$(source.name)\" belongs to both genome ",
+                lazy"\"$(source_by_name[source.name].genome.name)\" and \"$(genome.name)\"."
+            )
+        end
+        source_by_name[source.name] = source
+    end
+
+    # Parse sequences
+    for (seq_name, (seq_length, targs)) in json_struct.sequences
+        targets = map(targs) do (source_name, from, to)
+            if to < from
+                error(lazy"Sequence \"$(seq_name)\" spans $(from)-$(to), must span at least 1 base.")
+            end
+            source = get(source_by_name, source_name, nothing)
+            if source === nothing
+                error(lazy"Sequence \"$(seq_name)\" maps to source \"$(source_name)\", but no such source in reference")
+            end
+            (source, Int(from):Int(to))
+        end
+        seq = Sequence(seq_name, seq_length)
+        add_sequence!(ref, seq, targets)
+    end
+
+    # Add taxonomy
     copy!(ref.clades, parse_taxonomy(ref.genomes, json_struct.taxmaps))
+
+    # Finalize each genome (which will finish all sources)
+    foreach(finish!, ref.genomes)
     ref
 end
 
 function save(io::IO, ref::Reference)
-    json_dict = Dict{Symbol, Any}(:genomes => Dict(), :taxmaps => [])
+    json_dict = Dict{Symbol, Any}(:genomes => Dict(), :sequences => Dict(), :taxmaps => [])
     genome_dict = json_dict[:genomes]
     for genome in ref.genomes
-        source_dict = Dict()
-        genome_dict[genome.name] = source_dict
-        for (sourcename, len) in genome.sources
-            source_dict[sourcename] = (len, Dict())
-        end
+        genome_dict[genome.name] = genome.sources
     end
-    for (seq, genome) in ref.genomeof
-        genome_dict[genome.name][seq.subject][2][seq.name] = extrema(seq.span)
+    sequence_dict = json_dict[:sequences]
+    for (_, (sequence, targets)) in ref.targets_by_name
+        sequence_dict[sequence.name] = (sequence.length, [(source, first(span), last(span))] for (source, span) in targets)
     end
     children = Set{Node}(ref.genomes)
     parents = Set{Node}()

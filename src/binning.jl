@@ -84,7 +84,7 @@ function Binning(
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS,
 )
-    bins = parse_bins(io, ref, binsplit_separator)
+    bins = sort!(parse_bins(io, ref, binsplit_separator), by=i -> i.name)
     filter!(bins) do bin
         nseqs(bin) >= min_seqs && bin.breadth >= min_size
     end
@@ -110,11 +110,12 @@ function gold_standard(
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS
 )::Binning
-    sequences_of_genome = Dict{Genome, Vector{Sequence}}()
-    for (sequence, genome) in ref.genomeof
-        push!(get!(valtype(sequences_of_genome), sequences_of_genome, genome), sequence)
+    sequences_of_genome = Dict{Genome, Set{Sequence}}()
+    for (_, (sequence, targets)) in ref.targets_by_name, (source, _) in targets
+        push!(get!(valtype(sequences_of_genome), sequences_of_genome, source.genome), sequence)
     end
-    bins = [Bin("bin_" * genome.name, seqs, ref.genomeof) for (genome, seqs) in sequences_of_genome]
+    bins = [Bin("bin_" * genome.name, collect(seqs), ref.targets_by_name) for (genome, seqs) in sequences_of_genome]
+    sort!(bins, by=i -> i.name)
     Binning(bins, ref; recalls=recalls, precisions=precisions, disjoint=false)
 end
 
