@@ -3,7 +3,7 @@ module VambBenchmarks
 using AbstractTrees: AbstractTrees
 using JSON3: JSON3
 using StructTypes: StructTypes
-using LazilyInitializedFields: @lazy, @isinit, @init!, uninit
+using LazilyInitializedFields: @lazy, @isinit, @init!, @uninit!, uninit
 using SnoopPrecompile: @precompile_all_calls
 
 include("utils.jl")
@@ -20,10 +20,11 @@ imap(f) = x -> Iterators.map(f, x)
 ifilter(f) = x -> Iterators.filter(f, x)
 
 @precompile_all_calls let
-    ref = open(joinpath(dirname(dirname(pathof(VambBenchmarks))), "files", "ref.json")) do io
+    dir = dirname(dirname(pathof(VambBenchmarks)))
+    ref = open(joinpath(dir, "files", "ref.json")) do io
         Reference(io)
     end
-    bins = open(joinpath(dirname(dirname(pathof(VambBenchmarks))), "files", "clusters.tsv")) do io
+    bins = open(joinpath(dir, "files", "clusters.tsv")) do io
         Binning(io, ref)
     end
     print_matrix(IOBuffer(), bins, 1)
@@ -41,6 +42,7 @@ export Sequence,
     ngenomes,
     top_clade,
     gold_standard,
+    filter_size,
     f1,
     fscore,
     mrca,

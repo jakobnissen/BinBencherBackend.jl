@@ -35,6 +35,43 @@ function nranks(x::Reference)
     length(x.clades) + 1
 end
 
+"""
+    filter_size(ref::Reference, size::Int)::Reference
+
+Create a new, independent (deep copied) `Reference`, where all sequences
+with a length smaller than `size` has been removed.
+
+# Examples
+```julia
+julia> ref
+Reference
+  Genomes:   1057
+  Sequences: 1247324
+  Ranks:     8
+
+julia> filter_size(ref, 5000)
+Reference
+  Genomes:   1057
+  Sequences: 30501
+  Ranks:     8
+```
+"""
+function filter_size(ref::Reference, size::Int)
+    ref = deepcopy(ref)
+    filter!(ref.targets_by_name) do (_, v)
+        first(v).length ≥ size
+    end
+    for genome in ref.genomes
+        @uninit! genome.breadth
+        for source in genome.sources
+            @uninit! source.n_covered
+            filter!(((seq, _),) -> seq.length ≥ size, source.sequences)
+        end
+        finish!(genome)
+    end
+    ref
+end
+
 function add_genome!(ref::Reference, genome::Genome)
     in(genome, ref.genomes) && error(lazy"Genome $(genome.name) already in reference")
     push!(ref.genomes, genome)
