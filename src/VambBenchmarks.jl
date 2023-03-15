@@ -20,15 +20,15 @@ imap(f) = x -> Iterators.map(f, x)
 ifilter(f) = x -> Iterators.filter(f, x)
 
 @precompile_all_calls let
-    dir = dirname(dirname(pathof(VambBenchmarks)))
-    ref = open(joinpath(dir, "files", "ref.json")) do io
+    dir = joinpath(dirname(dirname(pathof(VambBenchmarks))), "files")
+    @assert isdir(dir)
+    ref = open(joinpath(dir, "ref.json")) do io
         Reference(io)
     end
-    bins = open(joinpath(dir, "files", "clusters.tsv")) do io
+    bins = open(joinpath(dir, "clusters.tsv")) do io
         Binning(io, ref)
     end
     print_matrix(IOBuffer(), bins)
-    filter_size(ref, 30)
 end
 
 export Sequence,

@@ -259,5 +259,6 @@ function parse_taxonomy(
         end
     end
     @assert length(last(result)) == 1
+    foreach(i -> sort!(by=j -> j.name, i), result)
     return result
 end
