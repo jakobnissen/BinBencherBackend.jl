@@ -1,15 +1,17 @@
-struct Reference
-    genomes::Set{Genome}
+@lazy mutable struct Reference
+    const genomes::Set{Genome}
     # Sequence name => (sequence, targets)
-    targets_by_name::Dict{String, Tuple{Sequence, Vector{Target}}}
-    clades::Vector{Vector{Clade{Genome}}}
+    const targets_by_name::Dict{String, Tuple{Sequence, Vector{Target}}}
+    const clades::Vector{Vector{Clade{Genome}}}
+    @lazy fraction_assembled::Float64
 end
 
 function Reference()
     Reference(
         Set{Genome}(),
         Dict{String, Tuple{Sequence, Vector{Target}}}(),
-        Vector{Clade{Genome}}[]
+        Vector{Clade{Genome}}[],
+        uninit
     )
 end
 
@@ -23,6 +25,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Reference)
             "\n  Genomes:   ", ngenomes(x),
             "\n  Sequences: ", nseqs(x),
             "\n  Ranks:     ", nranks(x),
+            "\n  Assembled: ", round(x.fraction_assembled * 100; digits=1), " %"
         )
     end
 end
@@ -33,6 +36,18 @@ nseqs(x::Reference) = length(x.targets_by_name)
 function nranks(x::Reference)
     isempty(x.genomes) && return 0
     length(x.clades) + 1
+end
+
+function finish!(ref::Reference)
+    @isinit(ref.fraction_assembled) && return ref
+    foreach(finish!, ref.genomes)
+    assembly_size = genome_size = 0
+    for genome in ref.genomes
+        assembly_size += genome.assembly_size
+        genome_size += genome.genome_size
+    end
+    @init! ref.fraction_assembled = assembly_size / genome_size
+    ref
 end
 
 """
@@ -58,18 +73,19 @@ Reference
 """
 function filter_size(ref::Reference, size::Int)
     ref = deepcopy(ref)
+    @uninit! ref.fraction_assembled
     filter!(ref.targets_by_name) do (_, v)
         first(v).length ≥ size
     end
     for genome in ref.genomes
-        @uninit! genome.breadth
+        @uninit! genome.genome_size
+        @uninit! genome.assembly_size
         for source in genome.sources
-            @uninit! source.n_covered
+            @uninit! source.assembly_size
             filter!(((seq, _),) -> seq.length ≥ size, source.sequences)
         end
-        finish!(genome)
     end
-    ref
+    finish!(ref)
 end
 
 function add_genome!(ref::Reference, genome::Genome)
@@ -159,9 +175,8 @@ function Reference(io::IO)
     # Add taxonomy
     copy!(ref.clades, parse_taxonomy(ref.genomes, json_struct.taxmaps))
 
-    # Finalize each genome (which will finish all sources)
-    foreach(finish!, ref.genomes)
-    ref
+    # Finalize the reference
+    finish!(ref)
 end
 
 function save(io::IO, ref::Reference)

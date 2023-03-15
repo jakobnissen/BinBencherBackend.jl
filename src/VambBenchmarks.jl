@@ -27,7 +27,8 @@ ifilter(f) = x -> Iterators.filter(f, x)
     bins = open(joinpath(dir, "files", "clusters.tsv")) do io
         Binning(io, ref)
     end
-    print_matrix(IOBuffer(), bins, 1)
+    print_matrix(IOBuffer(), bins)
+    filter_size(ref, 30)
 end
 
 export Sequence,

@@ -2,10 +2,11 @@
     const name::String
     const sources::Set{Source{Genome}}
     @lazy parent::Clade{Genome}
-    @lazy breadth::Int
+    @lazy genome_size::Int
+    @lazy assembly_size::Int
 
     function Genome(name::AbstractString)
-        new(String(name), Set{Source{Genome}}(), uninit, uninit)
+        new(String(name), Set{Source{Genome}}(), uninit, uninit, uninit)
     end
 end
 
@@ -29,7 +30,7 @@ Base.:(==)(g1::Genome, g2::Genome) = g1.name == g2.name
 Base.hash(x::Genome, h::UInt) = hash(x.name, h ⊻ UInt(21323125590))
 
 function add_source!(genome::Genome, name::AbstractString, length::Integer)
-    @isinit(genome.breadth) && error("Can't add source to genome after calling finish! on it.")
+    @isinit(genome.genome_size) && error("Can't add source to genome after calling finish! on it.")
     source = Source(genome, name, length)
     in(source, genome.sources) && error(lazy"Genome $(genome.name) already have source $(source.name)")
     push!(genome.sources, source)
@@ -37,14 +38,15 @@ function add_source!(genome::Genome, name::AbstractString, length::Integer)
 end
 
 function finish!(genome::Genome)
-    @isinit(genome.breadth) && return genome
+    @isinit(genome.genome_size) && return genome
     @isinit(genome.parent) || error(
         lazy"finish! called on genome \"$(genome.name)\" without assigned parent."
     )
     for source in genome.sources
-        @isinit(source.n_covered) || finish!(source)
+        @isinit(source.assembly_size) || finish!(source)
     end
-    @init! genome.breadth = sum(i -> i.n_covered, genome.sources)
+    @init! genome.genome_size = sum(i -> i.length, genome.sources; init=0)
+    @init! genome.assembly_size = sum(i -> i.assembly_size, genome.sources; init=0)
     genome
 end
 
@@ -53,11 +55,13 @@ function Base.show(io::IO, ::MIME"text/plain", x::Genome)
     if get(io, :compact, false)
         show(io, x)
     else
+        asm = (x.assembly_size / x.genome_size) * 100
         print(io,
             "Genome \"", x.name,
-            "\"\n  Parent: ", '"', x.parent.name, '"',
-            "\n  Breadth: ", x.breadth,
-            "\n  Sources: ", length(x.sources)
+            "\"\n  Parent:        ", '"', x.parent.name, '"',
+            "\n  Genome size:   ", x.genome_size,
+            "\n  Assembly size: ", x.assembly_size, " (", round(asm, digits=1), " %)",
+            "\n  Sources:       ", length(x.sources),
         )
     end
 end

@@ -3,7 +3,7 @@
     const genome::G
     const length::Int
     const sequences::Vector{Tuple{Sequence, UnitRange{Int}}}
-    @lazy n_covered::Int
+    @lazy assembly_size::Int
 
     function Source(genome::G, name::AbstractString, length::Integer) where G
         length ≤ 0 && error("Source length must be at least 1")
@@ -22,26 +22,29 @@ function add_sequence!(source::Source, seq::Sequence, span::UnitRange{Int})
             lazy"at span $(span), but valid source indices are 1:$(source.length)"
         )
     end
-    @isinit(source.n_covered) && error("Can't add sequence to source after calling finish! on it.")
+    @isinit(source.assembly_size) && error("Can't add sequence to source after calling finish! on it.")
     push!(source.sequences, (seq, span))
     source
 end
 
 function finish!(source::Source)
-    @isinit(source.n_covered) && return source
-    @init! source.n_covered = overlap_breadth(source.sequences, last)
+    @isinit(source.assembly_size) && return source
+    asm_size = assembly_size(source.sequences, last)
+    @assert asm_size ≤ source.length
+    @init! source.assembly_size = asm_size
     source
 end
 
-function overlap_breadth(v, by=identity)
-    breadth = 0
+# v: Vector of X, where by(X) isa UnitRange
+function assembly_size(v::Vector, by=identity)
+    size = 0
     rightmost_end = 0
     for i in sort!(v; by=i -> first(by(i)), alg=QuickSort)
         span = by(i)::UnitRange
-        breadth += max(last(span), rightmost_end) - max(first(span) - 1, rightmost_end)
+        size += max(last(span), rightmost_end) - max(first(span) - 1, rightmost_end)
         rightmost_end = max(rightmost_end, last(span))
     end
-    breadth
+    size
 end
 
 Base.show(io::IO, x::Source) = print(io, "Source(", x.name, ", ", x.length, ')')
@@ -51,10 +54,10 @@ function Base.show(io::IO, ::MIME"text/plain", x::Source)
     else
         print(io,
             "Source \"", x.name,
-            "\"\ngenome:      ", x.genome,
-            "\n  length:      ", x.length,
-            "\n  n_covered:   ", x.n_covered,
-            "\n  n_sequences: ", length(x.sequences)
+            "\"\ngenome:          ", x.genome,
+            "\n  Length:        ", x.length,
+            "\n  Assembly size: ", x.assembly_size,
+            "\n  Sequences:     ", length(x.sequences),
         )
     end
 end

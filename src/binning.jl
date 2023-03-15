@@ -4,7 +4,12 @@ const DEFAULT_PRECISIONS = (0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99)
 struct Binning
     ref::Reference
     bins::Vector{Bin}
-    counters::Vector{Matrix{Int}}
+    # One matrix per rank - first is genome, then upwards
+    recovered_asms::Vector{Matrix{Int}}
+    recovered_genomes::Vector{Matrix{Int}}
+    # If perfect binning, this number of genomes could be recovered at the
+    # various recall levels
+    recoverable_genomes::Vector{Int}
     recalls::Vector{Float64}
     precisions::Vector{Float64}
 end
@@ -38,9 +43,12 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
         if nc !== nothing
             print(io, "\n  NC genomes:  ", nc)
         end
-        print(io, "\n  Genomes:\n")
+        print(io, "\n  Precisions: ", repr([round(i; digits=3) for i in x.precisions]))
+        print(io, "\n  Recalls:    ", repr([round(i; digits=3) for i in x.recalls]))
+        print(io, "\n  Recoverable genomes: ", repr(x.recoverable_genomes))
+        print(io, "\n  Reconstruction (assemblies):\n")
         seekstart(buf)
-        print_matrix(buf, x, 1)
+        print_matrix(buf, x; level=1, assembly=true)
         seekstart(buf)
         for line in eachline(buf)
             println(io, "    ", line)
@@ -48,11 +56,12 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
     end
 end
 
-print_matrix(x::Binning, level::Integer=1) = print_matrix(stdout, x, level)
-function print_matrix(io::IO, x::Binning, level::Integer=1)
+print_matrix(x::Binning; kwargs...) = print_matrix(stdout, x; kwargs...)
+function print_matrix(io::IO, x::Binning; level::Integer=1, assembly::Bool=true)
+    ms = assembly ? x.recovered_asms : x.recovered_genomes
+    m = ms[level]
     rnd(x) = string(round(x, digits=3))
     digitwidth(x) = sizeof(rnd(x))
-    m = x.counters[level]
     width = max(
         max(4, ndigits(maximum(m) + 1)),
         maximum(digitwidth, x.recalls) + 1
@@ -69,7 +78,7 @@ function n_nc(x::Binning)::Union{Int, Nothing}
     rec_i === nothing && return nothing
     prec_i = findfirst(isequal(0.95), x.precisions)
     prec_i === nothing && return nothing
-    x.counters[1][prec_i, rec_i]
+    x.recovered_genomes[1][prec_i, rec_i]
 end
 
 nbins(x::Binning) = length(x.bins)
@@ -101,8 +110,18 @@ function Binning(bins_,
     checked_precisions = validate_recall_precision(precisions)
     bins = vector(bins_)
     disjoint && check_disjoint(bins)
-    counters = benchmark(ref, bins, checked_recalls, checked_precisions)
-    Binning(ref, bins, counters, checked_recalls, checked_precisions)
+    recoverable_genomes = zeros(Float64, length(checked_recalls))
+    for genome in ref.genomes
+        i = searchsortedlast(checked_recalls, genome.assembly_size / genome.genome_size)
+        iszero(i) && continue
+        recoverable_genomes[i] += 1
+    end
+    # If a genome is recoverable at recall 0.5, it's recoverable at recalls < 0.5
+    for i in length(recoverable_genomes)-1:-1:1
+        recoverable_genomes[i] += recoverable_genomes[i + 1]
+    end
+    (asm_matrices, genome_matrices) = benchmark(ref, bins, checked_recalls, checked_precisions)
+    Binning(ref, bins, asm_matrices, genome_matrices, recoverable_genomes, checked_recalls, checked_precisions)
 end
 
 function gold_standard(
@@ -151,78 +170,83 @@ function benchmark(
     recalls::Vector{Float64},
     precisions::Vector{Float64}
 )
-    counters = Matrix{Int}[]
-    rp_by_node = Dict{Node, Dict{Bin, Tuple{Float64, Float64}}}(
-        g => Dict{Bin, Tuple{Float64, Float64}}() for g in ref.genomes
-    )
-    for bin in bins, genome in keys(bin.intersections)
-        rp_by_node[genome][bin] = recall_precision(genome, bin)
+    # For each genome/clade, we compute the maximal recall at the given precision levels.
+    # i.e. if 3rd element of vector is 0.5, it means that at precision precisions[3], this genome/clade
+    # is found with a maximal recall of 0.5.
+    # We keep two vectors: First for recovered assemblies, second for recovered genomes
+    max_genome_recall_at_precision = Dict{Genome, Tuple{Vector{Float64}, Vector{Float64}}}()
+    max_clade_recall_at_precision = Dict{Clade{Genome}, Tuple{Vector{Float64}, Vector{Float64}}}()
+    # Initialize with zeros for all known genomes/clades
+    for genome in ref.genomes
+        max_genome_recall_at_precision[genome] = (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
     end
-    push!(counters, get_counts(rp_by_node, recalls, precisions))
-    uprank_dict = empty(rp_by_node)
-    while length(rp_by_node) > 1 || only(keys(rp_by_node)).parent !== nothing
-        uprank_rp_by_node!(uprank_dict, rp_by_node)
-        push!(counters, get_counts(uprank_dict, recalls, precisions))
-        (uprank_dict, rp_by_node) = (rp_by_node, uprank_dict)
+    for level in ref.clades, clade in level
+        max_clade_recall_at_precision[clade] = (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
     end
-    counters
+    for bin in bins
+        for (genome, (asmsize, foreign)) in bin.genomes
+            (v_asm, v_genome) = max_genome_recall_at_precision[genome]
+            precision = (asmsize) / (asmsize + foreign)
+            asm_recall = asmsize / genome.assembly_size
+            genome_recall = asmsize / genome.genome_size
+            # Find the index corresponding to the given precision. If the precision is lower than
+            # the smallest precision in `precisions`, don't do anything
+            precision_index = searchsortedlast(precisions, precision)
+            iszero(precision_index) && continue
+            v_asm[precision_index] = max(asm_recall, v_asm[precision_index])
+            v_genome[precision_index] = max(genome_recall, v_genome[precision_index])
+        end
+        # Same as above, but for clades
+        for (clade, (asm_recall, genome_recall, precision)) in bin.clades
+            precision_index = searchsortedlast(precisions, precision)
+            iszero(precision_index) && continue
+            (v_asm, v_genome) = max_clade_recall_at_precision[clade]
+            for (v, recall) in ((v_asm, asm_recall), (v_genome, genome_recall))
+                v[precision_index] = max(recall, v[precision_index])
+            end
+        end
+    end
+    # Make all the vectors cumulative. I.e. if a genome is seen at precisions[3] with recall=0.6,
+    # then it's also seen at precisions[2] and precisions[1] with at least recall=0.6.
+    for (v1, v2) in values(max_genome_recall_at_precision)
+        make_reverse_cumulative!(v1)
+        make_reverse_cumulative!(v2)
+    end
+    for (v1, v2) in values(max_clade_recall_at_precision)
+        make_reverse_cumulative!(v1)
+        make_reverse_cumulative!(v2)
+    end
+    # Now make the matrices. If at precision `precisions[3]`, we find a recall of 0.6,
+    # then we find the index in recalls that correspond to 0.6, say 4. Then, add 1 to all entries
+    # in the matrix[1:4, 3].
+    asm_matrices = [zeros(Int, length(recalls), length(precisions)) for i in 1:nranks(ref)]
+    genome_matrices = [copy(i) for i in asm_matrices]
+    for (v_asm, v_genome) in values(max_genome_recall_at_precision)
+        for (v, m) in ((v_asm, asm_matrices[1]), (v_genome, genome_matrices[1]))
+            update_matrix!(m, v, recalls)
+        end
+    end
+    for (clade, (v_asm, v_genome)) in max_clade_recall_at_precision
+        for (v, matrices) in ((v_asm, asm_matrices), (v_genome, genome_matrices))
+            update_matrix!(matrices[clade.rank + 1], v, recalls)
+        end
+    end
+    (map(permutedims, asm_matrices), map(permutedims, genome_matrices))
 end
 
-function get_counts(
-    rp_by_node::Dict{Node, Dict{Bin, Tuple{Float64, Float64}}},
-    recalls::Vector{Float64},
-    precisions::Vector{Float64},
-)
-    # The current genome has a bin at the given recall with at most precision
-    max_precision_at_recalls = zeros(length(recalls))
-    counts = zeros(Int, (length(precisions), length(recalls)))
-    for dict in values(rp_by_node)
-        fill!(max_precision_at_recalls, zero(eltype(max_precision_at_recalls)))
-        # For each (rec, prec) pair, find the corresponding recall, and set
-        # the max precision in max_precision_at_recalls
-        for (_, (recall, precision)) in dict
-            i = searchsortedlast(recalls, recall)
-            iszero(i) && continue
-            max_precision_at_recalls[i] = max(precision, max_precision_at_recalls[i])
-        end
-        # If max_precision_at_recalls[i] == x, then all previous values in the
-        # vector should be at least x. Set it to that if not already.
-        last_prec = last(max_precision_at_recalls)
-        for i in lastindex(max_precision_at_recalls)-1:-1:1
-            last_prec = max(last_prec, max_precision_at_recalls[i])
-            max_precision_at_recalls[i] = last_prec
-        end
-        # Now, for each (recall_index, precision) in pairs(max_precision_at_recalls),
-        # find the corresponding precision_index. The bin is seen at that recall,
-        # at all precision indices up to and including that index.
-        # For the next recall, the precision index can be no larger than the previous
-        # one
-        max_precision_index = lastindex(precisions)
-        for (recall_index, precision) in pairs(max_precision_at_recalls)
-            precision_index = searchsortedlast(view(precisions, 1:max_precision_index), precision)
-            iszero(precision_index) && break
-            max_precision_index = min(precision_index, max_precision_index)
-            counts[1:precision_index, recall_index] .+= 1
-        end
+function update_matrix!(matrix::Matrix{<:Integer}, v::Vector{<:AbstractFloat}, recalls::Vector{Float64})
+    for (precision_index, recall) in enumerate(v)
+        # TODO: By keeping track of the maximal recall index (which must shrink)
+        # we can reduce search space here, if performance critical
+        recall_index = searchsortedlast(recalls, recall)
+        matrix[1:recall_index, precision_index] .+= 1
     end
-    counts
+    matrix
 end
-
-function uprank_rp_by_node!(
-    uprank_dict::T,
-    rp_by_node::T,
-) where {T <: Dict{Node, Dict{Bin, Tuple{Float64, Float64}}}}
-    empty!(uprank_dict)
-    for (child, child_dict) in rp_by_node
-        parent = child.parent::Clade
-        parent_dict = get!(valtype(uprank_dict), uprank_dict, parent)
-        for (bin, (old_recall, old_prec)) in child_dict
-            (new_recall, new_prec) = get(parent_dict, bin, (0.0, 0.0))
-            parent_dict[bin] = (
-                max(old_recall, new_recall),
-                old_prec + new_prec
-            )
-        end
+            
+function make_reverse_cumulative!(v::Vector{<:Real})
+    for i in length(v)-1:-1:1
+        v[i] = max(v[i], v[i+1])
     end
-    uprank_dict
+    v
 end
