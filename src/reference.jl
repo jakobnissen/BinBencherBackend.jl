@@ -183,11 +183,11 @@ function save(io::IO, ref::Reference)
     json_dict = Dict{Symbol, Any}(:genomes => Dict(), :sequences => Dict(), :taxmaps => [])
     genome_dict = json_dict[:genomes]
     for genome in ref.genomes
-        genome_dict[genome.name] = genome.sources
+        genome_dict[genome.name] = Dict(s.name => s.length for s in genome.sources)
     end
     sequence_dict = json_dict[:sequences]
     for (_, (sequence, targets)) in ref.targets_by_name
-        sequence_dict[sequence.name] = (sequence.length, [(source, first(span), last(span))] for (source, span) in targets)
+        sequence_dict[sequence.name] = (sequence.length, [(source.name, first(span), last(span)) for (source, span) in targets])
     end
     children = Set{Node}(ref.genomes)
     parents = Set{Node}()
@@ -195,7 +195,7 @@ function save(io::IO, ref::Reference)
         d = Dict()
         for child in children
             parent = child.parent
-            d[child] = parent
+            d[child.name] = (isnothing(parent) ? nothing : parent.name)
             parent === nothing || push!(parents, parent)
         end
         push!(json_dict[:taxmaps], d)
