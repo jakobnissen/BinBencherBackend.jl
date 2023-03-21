@@ -3,6 +3,7 @@
     # Sequence name => (sequence, targets)
     const targets_by_name::Dict{String, Tuple{Sequence, Vector{Target}}}
     const clades::Vector{Vector{Clade{Genome}}}
+    @lazy shortest_seq_len::Int
     @lazy fraction_assembled::Float64
 end
 
@@ -11,6 +12,7 @@ function Reference()
         Set{Genome}(),
         Dict{String, Tuple{Sequence, Vector{Target}}}(),
         Vector{Clade{Genome}}[],
+        uninit,
         uninit
     )
 end
@@ -22,10 +24,11 @@ function Base.show(io::IO, ::MIME"text/plain", x::Reference)
     else
         print(io,
             "Reference",
-            "\n  Genomes:   ", ngenomes(x),
-            "\n  Sequences: ", nseqs(x),
-            "\n  Ranks:     ", nranks(x),
-            "\n  Assembled: ", round(x.fraction_assembled * 100; digits=1), " %"
+            "\n  Genomes:    ", ngenomes(x),
+            "\n  Sequences:  ", nseqs(x),
+            "\n  Ranks:      ", nranks(x),
+            "\n  Seq length: ", x.shortest_seq_len,
+            "\n  Assembled:  ", round(x.fraction_assembled * 100; digits=1), " %"
         )
     end
 end
@@ -46,6 +49,9 @@ function finish!(ref::Reference)
         assembly_size += genome.assembly_size
         genome_size += genome.genome_size
     end
+    shortest_seq_len = minimum(i -> length(first(i)), values(ref.targets_by_name); init=typemax(Int))
+    shortest_seq_len == typemax(Int) && error("Cannot initialize a Reference with no sequences")
+    @init! ref.shortest_seq_len = shortest_seq_len
     @init! ref.fraction_assembled = assembly_size / genome_size
     ref
 end
@@ -74,6 +80,7 @@ Reference
 function filter_size(ref::Reference, size::Int)
     ref = deepcopy(ref)
     @uninit! ref.fraction_assembled
+    @uninit! ref.shortest_seq_len
     filter!(ref.targets_by_name) do (_, v)
         first(v).length ≥ size
     end
@@ -122,17 +129,20 @@ function parse_bins(
 end
 
 struct ReferenceJSON
-    # Genome => (subject => length)
-    genomes::Dict{String, Dict{String, Int}}
-    # Sequence => (sequence_length, [(subject, from, to)])
-    sequences::Dict{String, Tuple{Int, Vector{Tuple{String, Int, Int}}}}
-    # child => parent
-    taxmaps::Vector{Dict{String, Union{String, Nothing}}}
+    # [Genome => (subject => length)]
+    genomes::Vector{Tuple{String, Vector{Tuple{String, Int}}}}
+    # [Sequence => sequence_length, [(subject, from, to)]]
+    sequences::Vector{Tuple{String, Int, Vector{Tuple{String, Int, Int}}}}
+    # [[child => parent] ...]
+    taxmaps::Vector{Vector{Tuple{String, Union{String, Nothing}}}}
 end
 StructTypes.StructType(::Type{ReferenceJSON}) = StructTypes.Struct()
 
-function Reference(io::IO)
-    json_struct = JSON3.read(io, ReferenceJSON)
+function Reference(io::IO; min_seq_length::Integer=1)
+    Reference(JSON3.read(io, ReferenceJSON), Int(min_seq_length))
+end
+
+function Reference(json_struct::ReferenceJSON, min_seq_length::Int)
     ref = Reference()
 
     # Parse genomes
@@ -157,7 +167,8 @@ function Reference(io::IO)
     end
 
     # Parse sequences
-    for (seq_name, (seq_length, targs)) in json_struct.sequences
+    for (seq_name, seq_length, targs) in json_struct.sequences
+        seq_length ≥ min_seq_length || continue
         targets = map(targs) do (source_name, from, to)
             if to < from
                 error(lazy"Sequence \"$(seq_name)\" spans $(from)-$(to), must span at least 1 base.")
@@ -180,34 +191,35 @@ function Reference(io::IO)
 end
 
 function save(io::IO, ref::Reference)
-    json_dict = Dict{Symbol, Any}(:genomes => Dict(), :sequences => Dict(), :taxmaps => [])
-    genome_dict = json_dict[:genomes]
-    for genome in ref.genomes
-        genome_dict[genome.name] = Dict(s.name => s.length for s in genome.sources)
-    end
-    sequence_dict = json_dict[:sequences]
-    for (_, (sequence, targets)) in ref.targets_by_name
-        sequence_dict[sequence.name] = (sequence.length, [(source.name, first(span), last(span)) for (source, span) in targets])
-    end
-    children = Set{Node}(ref.genomes)
-    parents = Set{Node}()
-    while !isempty(children)
-        d = Dict()
-        for child in children
-            parent = child.parent
-            d[child.name] = (isnothing(parent) ? nothing : parent.name)
-            parent === nothing || push!(parents, parent)
+    json_dict = Dict{Symbol, Any}()
+    # Genomes
+    json_dict[:genomes] = [(genome.name, [(s.name, s.length) for s in genome.sources]) for genome in ref.genomes]
+
+    # Sequences
+    json_dict[:sequences] = [
+        (seq.name, seq.length, [(source.name, first(span), last(span)) for (source, span) in targets])
+        for (_, (seq, targets)) in ref.targets_by_name
+    ]
+
+    # Taxmaps
+    taxmaps = [Tuple{String, Union{String, Nothing}}[(genome.name, genome.parent.name) for genome in ref.genomes]]
+    json_dict[:taxmaps] = taxmaps
+    for clades in ref.clades
+        v = eltype(taxmaps)()
+        push!(taxmaps, v)
+        for clade in clades
+            parent = clade.parent
+            value = parent === nothing ? nothing : parent.name
+            push!(v, (clade.name, value))
         end
-        push!(json_dict[:taxmaps], d)
-        children, parents = parents, children
-        empty!(parents)
     end
+
     JSON3.write(io, json_dict)
 end
 
 function parse_taxonomy(
     genomes::Set{Genome},
-    dict::Vector{Dict{String, Union{String, Nothing}}}
+    dict::Vector{Vector{Tuple{String, Union{String, Nothing}}}}
 )::Vector{Vector{Clade{Genome}}}
     child_by_name = Dict{String, Node}(g.name => g for g in genomes)
     parent_by_name = empty(child_by_name)

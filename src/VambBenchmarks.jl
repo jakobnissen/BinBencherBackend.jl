@@ -23,7 +23,7 @@ ifilter(f) = x -> Iterators.filter(f, x)
     dir = joinpath(dirname(dirname(pathof(VambBenchmarks))), "files")
     @assert isdir(dir)
     ref = open(joinpath(dir, "ref.json")) do io
-        Reference(io)
+        Reference(io; min_seq_length=10)
     end
     bins = open(joinpath(dir, "clusters.tsv")) do io
         Binning(io, ref)
