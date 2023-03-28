@@ -26,6 +26,15 @@ function add_child!(c::Clade{Genome}, g::Node)
     c
 end
 
+function recursively_delete_child!(child::T) where {T <: Node}
+    parent = child.parent
+    parent === nothing && return nothing
+    children = parent.children::Vector{T}
+    deleteat!(children, findfirst(i -> i === child, children)::Integer)
+    parent.ngenomes -= 1
+    isempty(children) && recursively_delete_child!(parent)
+end
+
 Base.:(==)(g1::Genome, g2::Genome) = g1.name == g2.name
 Base.hash(x::Genome, h::UInt) = hash(x.name, h ⊻ UInt(21323125590))
 

@@ -57,10 +57,10 @@ function finish!(ref::Reference)
 end
 
 """
-    filter_size(ref::Reference, size::Int)::Reference
+    filter_sequences(f::Function, ref::Reference)::Reference
 
-Create a new, independent (deep copied) `Reference`, where all sequences
-with a length smaller than `size` has been removed.
+Create a new, independent (deep copied) `Reference`, keeping only
+the sequences for which `f(sequence)` is `true`.
 
 # Examples
 ```julia
@@ -70,29 +70,64 @@ Reference
   Sequences: 1247324
   Ranks:     8
 
-julia> filter_size(ref, 5000)
+julia> filter_size(s -> s.length ≥ 5000, ref)
 Reference
   Genomes:   1057
   Sequences: 30501
   Ranks:     8
 ```
 """
-function filter_size(ref::Reference, size::Int)
-    ref = deepcopy(ref)
+function filter_sequences(@nospecialize(f::Function), ref::Reference)
+    ref = uninit!(deepcopy(ref))
+    filter!(ref.targets_by_name) do (_, v)
+        f(first(v))::Bool
+    end
+    for genome in ref.genomes, source in genome.sources
+        filter!(i -> f(first(i))::Bool, source.sequences)
+    end
+    finish!(ref)
+end
+
+function filter_genomes(@nospecialize(f::Function), ref::Reference)
+    ref = uninit!(deepcopy(ref))
+    genomes_to_remove = Genome[]
+    sources_to_remove = Set{Source}()
+    filter!(ref.genomes) do g
+        keep = f(g)::Bool
+        keep || push!(genomes_to_remove, g)
+        keep
+    end
+    for genome in genomes_to_remove
+        union!(sources_to_remove, genome.sources)
+    end
+    for (_, targets) in values(ref.targets_by_name)
+        filter!(targets) do (source, _)
+            !in(source, sources_to_remove)
+        end
+    end
+    for genome in genomes_to_remove
+        recursively_delete_child!(genome)
+    end
+    for i in length(ref.clades)-1:-1:1
+        empty!(ref.clades[i])
+        for parent in ref.clades[i+1]
+            union!(ref.clades[i], parent.children)
+        end
+    end
+    finish!(ref)
+end
+
+function uninit!(ref::Reference)
     @uninit! ref.fraction_assembled
     @uninit! ref.shortest_seq_len
-    filter!(ref.targets_by_name) do (_, v)
-        first(v).length ≥ size
-    end
     for genome in ref.genomes
         @uninit! genome.genome_size
         @uninit! genome.assembly_size
         for source in genome.sources
             @uninit! source.assembly_size
-            filter!(((seq, _),) -> seq.length ≥ size, source.sequences)
         end
     end
-    finish!(ref)
+    ref
 end
 
 function add_genome!(ref::Reference, genome::Genome)
