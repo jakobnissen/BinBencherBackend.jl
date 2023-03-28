@@ -164,8 +164,8 @@ function parse_bins(
 end
 
 struct ReferenceJSON
-    # [Genome => (subject => length)]
-    genomes::Vector{Tuple{String, Vector{Tuple{String, Int}}}}
+    # [(name, flags, [(sourcename, length)])]
+    genomes::Vector{Tuple{String, Int, Vector{Tuple{String, Int}}}}
     # [Sequence => sequence_length, [(subject, from, to)]]
     sequences::Vector{Tuple{String, Int, Vector{Tuple{String, Int, Int}}}}
     # [[child => parent] ...]
@@ -181,8 +181,8 @@ function Reference(json_struct::ReferenceJSON, min_seq_length::Int)
     ref = Reference()
 
     # Parse genomes
-    for (genomename, sourcesdict) in json_struct.genomes
-        genome = Genome(genomename)
+    for (genomename, flags, sourcesdict) in json_struct.genomes
+        genome = Genome(genomename, FlagSet(UInt(flags)))
         add_genome!(ref, genome)
         for (source_name, source_length) in sourcesdict
             add_source!(genome, source_name, source_length)
@@ -228,7 +228,9 @@ end
 function save(io::IO, ref::Reference)
     json_dict = Dict{Symbol, Any}()
     # Genomes
-    json_dict[:genomes] = [(genome.name, [(s.name, s.length) for s in genome.sources]) for genome in ref.genomes]
+    json_dict[:genomes] = [
+        (genome.name, Int(genome.flags.x), [(s.name, s.length) for s in genome.sources])
+    for genome in ref.genomes]
 
     # Sequences
     json_dict[:sequences] = [
