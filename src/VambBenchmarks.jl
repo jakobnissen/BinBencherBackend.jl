@@ -7,6 +7,7 @@ using LazilyInitializedFields: @lazy, @isinit, @init!, @uninit!, uninit
 using SnoopPrecompile: @precompile_all_calls
 
 include("utils.jl")
+include("flags.jl")
 include("sequence.jl")
 include("source.jl")
 include("clade.jl")
@@ -32,6 +33,8 @@ ifilter(f) = x -> Iterators.filter(f, x)
 end
 
 export Sequence,
+    Flags,
+    FlagSet,
     Source,
     Clade,
     Genome,
