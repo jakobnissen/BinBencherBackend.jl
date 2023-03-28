@@ -163,7 +163,9 @@ function parse_bins(
     [Bin(binname, seqs, ref.targets_by_name) for (binname, seqs) in seqs_by_binname]
 end
 
+const JSON_VERSION = 1
 struct ReferenceJSON
+    version::Int
     # [(name, flags, [(sourcename, length)])]
     genomes::Vector{Tuple{String, Int, Vector{Tuple{String, Int}}}}
     # [Sequence => sequence_length, [(subject, from, to)]]
@@ -178,6 +180,12 @@ function Reference(io::IO; min_seq_length::Integer=1)
 end
 
 function Reference(json_struct::ReferenceJSON, min_seq_length::Int)
+    if json_struct.version != JSON_VERSION
+        @warn (
+            "Deserializing reference JSON of version $(json_struct.version), " *
+            "but the supported version of the currently loaded version of VambBenchmarks is $(JSON_VERSION)."
+        )
+    end
     ref = Reference()
 
     # Parse genomes
@@ -227,6 +235,7 @@ end
 
 function save(io::IO, ref::Reference)
     json_dict = Dict{Symbol, Any}()
+    json_dict[:version] = JSON_VERSION
     # Genomes
     json_dict[:genomes] = [
         (genome.name, Int(genome.flags.x), [(s.name, s.length) for s in genome.sources])
