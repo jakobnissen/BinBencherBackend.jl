@@ -1,18 +1,21 @@
 @lazy mutable struct Genome
     const name::String
     const sources::Set{Source{Genome}}
+    const flags::FlagSet
     @lazy parent::Clade{Genome}
     @lazy genome_size::Int
     @lazy assembly_size::Int
 
-    function Genome(name::AbstractString)
-        new(String(name), Set{Source{Genome}}(), uninit, uninit, uninit)
+    function Genome(name::AbstractString, flags::FlagSet)
+        new(String(name), Set{Source{Genome}}(), flags, uninit, uninit, uninit)
     end
 end
+Genome(name::AbstractString) = Genome(name, FlagSet())
 
 const Target = Tuple{Source{Genome}, UnitRange{Int}}
 const Node = Union{Genome, Clade{Genome}}
 
+flags(g::Genome) = g.flags
 function add_child!(c::Clade{Genome}, g::Node)
     children = c.children
     if g isa Genome
@@ -71,6 +74,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Genome)
             "\n  Genome size:   ", x.genome_size,
             "\n  Assembly size: ", x.assembly_size, " (", round(asm, digits=1), " %)",
             "\n  Sources:       ", length(x.sources),
+            "\n  Flags:         ", Int(x.flags.x), " (", join(x.flags, ", "), ')'
         )
     end
 end

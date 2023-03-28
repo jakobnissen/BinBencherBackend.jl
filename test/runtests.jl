@@ -34,7 +34,7 @@ end
 
 @testset "Filtering genomes" begin
     ref = Reference(IOBuffer(REFSTR))
-    ref2 = filter_genomes(g -> g.name != "gC", ref)
+    ref2 = filter_genomes(g -> !in(Flags.virus, flags(g)), ref)
 
     @test ref2 isa Reference
     @test ref2 !== ref
