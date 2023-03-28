@@ -27,7 +27,6 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
     if get(io, :compact, false)
         show(io, x)
     else
-        seqs = sum(nseqs, x.bins, init=0)
         buf = IOBuffer()
         show(buf, MIME"text/plain"(), x.ref)
         seekstart(buf)
@@ -36,8 +35,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
             println(io, "  ", line)
         end
         print(io,
-            "  Bins:        ", nbins(x),
-            "\n  Sequences:   ", seqs
+            "  Bins:        ", nbins(x)
         )
         nc = n_nc(x)
         if nc !== nothing

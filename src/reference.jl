@@ -261,6 +261,7 @@ function parse_taxonomy(
         for child in values(child_by_name)
             child === first(top.children) || add_child!(top, child)
         end
+        push!(result, [top])
     else
         top = only(values(child_by_name))::Clade{Genome}
         # If multiple redundant top clades, go down to the useful level
