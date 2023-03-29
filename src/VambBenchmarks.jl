@@ -4,7 +4,7 @@ using AbstractTrees: AbstractTrees
 using JSON3: JSON3
 using StructTypes: StructTypes
 using LazilyInitializedFields: @lazy, @isinit, @init!, @uninit!, uninit
-using SnoopPrecompile: @precompile_all_calls
+using SnoopPrecompile: @precompile_all_calls, @precompile_setup
 
 include("utils.jl")
 include("flags.jl")
@@ -20,16 +20,23 @@ vector(x) = x isa Vector ? x : vec(collect(x))
 imap(f) = x -> Iterators.map(f, x)
 ifilter(f) = x -> Iterators.filter(f, x)
 
-@precompile_all_calls let
+@precompile_setup let
     dir = joinpath(dirname(dirname(pathof(VambBenchmarks))), "files")
-    @assert isdir(dir)
-    ref = open(joinpath(dir, "ref.json")) do io
-        Reference(io; min_seq_length=10)
+    refpath = joinpath(dir, "ref.json")
+    binpath = joinpath(dir, "clusters.tsv")
+
+    @precompile_all_calls let
+        ref = open(refpath) do io
+            Reference(io; min_seq_length=10)
+        end
+        filter_genomes(Returns(true), ref)
+        filter_sequences(Returns(true), ref)
+        gold_standard(ref)
+        bins = open(binpath) do io
+            Binning(io, ref)
+        end
+        print_matrix(IOBuffer(), bins)
     end
-    bins = open(joinpath(dir, "clusters.tsv")) do io
-        Binning(io, ref)
-    end
-    print_matrix(IOBuffer(), bins)
 end
 
 export Sequence,
