@@ -1,3 +1,21 @@
+"""
+    Sequence(name::AbstractString, length::Integer)
+
+Type that represents a binnable sequence. Sequences do not contain other information
+than their name and their length, and are identified by their name.
+
+# Examples
+```jldoctest
+julia> Sequence("abc", 5)
+Sequence("abc", 5)
+
+julia> Sequence("abc", 5) == Sequence("abc", 9)
+true
+
+julia> Sequence("abc", 0)
+ERROR: ArgumentError: Cannot instantiate an empty sequence
+```
+"""
 struct Sequence
     name::String
     length::Int

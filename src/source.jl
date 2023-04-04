@@ -11,6 +11,23 @@
     end
 end
 
+"""
+    Source{Genome}(g::Genome, name::AbstractString, length::Integer)
+
+Sources are the "ground truth" sequences that the binning attempts to recreate.
+For example, the assembled contigs of the reference genome (typically full, closed circular
+contigs) as found in NCBI or elsewhere are each `Source`s.
+Many `Genome`s only contain a single `Source` namely its full assembled genome.
+Each `Source` has a single parent `Genome`, and a unique name which identifies it.
+
+`Source`s have zero or more mapping `Sequence`s, that each map to the `Source` at a given
+span given by a `UnitRange{Int}`.
+
+`Source`s have an _assembly size_, which is the number of base pairs where any sequence map
+to.
+"""
+Source
+
 Base.:(==)(s1::Source, s2::Source) = s1.name == s2.name
 Base.hash(x::Source, h::UInt) = hash(x.name, h ⊻ UInt(344509130945))
 

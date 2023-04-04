@@ -7,6 +7,37 @@
     @lazy fraction_assembled::Float64
 end
 
+"""
+    Reference
+
+A `Reference` contains the ground truth to benchmark against.
+Conceptually, it consists of the following parts:
+* A list of genomes, each with sources
+* The full taxonomic tree, as lists of clades
+* A list of sequences, each with a list of (source, span) to where it maps.
+
+Normally, the types `FlagSet` `Genome`, `Source`, `Clade` and `Sequence` do not
+need to be constructed manually, but are constructed when the `Reference` is loaded
+from a JSON file.
+
+Construct a `Reference` with `open(i -> Reference(i), "path/to/ref.json")`.
+
+# Examples
+```jldoctest
+julia> length(genomes(ref))
+3
+
+julia> nseqs(ref)
+11
+
+julia> first(ref.genomes) isa Genome
+true
+```
+
+See also: [`subset`](@ref), [`Genome`](@ref), [`Clade`](@ref)
+"""
+Reference
+
 function Reference()
     Reference(
         Set{Genome}(),
@@ -24,7 +55,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Reference)
     else
         print(io,
             "Reference",
-            "\n  Genomes:    ", ngenomes(x),
+            "\n  Genomes:    ", length(genomes(x)),
             "\n  Sequences:  ", nseqs(x),
             "\n  Ranks:      ", nranks(x),
             "\n  Seq length: ", x.shortest_seq_len,
@@ -34,7 +65,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Reference)
 end
 
 top_clade(x::Reference) = only(last(x.clades))
-ngenomes(x::Reference) = length(x.genomes)
+genomes(x::Reference) = x.genomes
 nseqs(x::Reference) = length(x.targets_by_name)
 function nranks(x::Reference)
     isempty(x.genomes) && return 0
@@ -57,7 +88,11 @@ function finish!(ref::Reference)
 end
 
 """
-    subset!(ref::Reference, sequences::Function, genomes::Function)::Reference
+    subset!(
+            ref::Reference;
+            sequences::Function=Returns(true),
+            genomes::Function=Returns(true)
+    )::Reference
 
 Mutate `ref` in place, removing genomes and sequences.
 Keep only sequences S where `sequences(S)` returns `true` and genomes G for which
@@ -84,7 +119,7 @@ Reference
   Assembled:  91.3 %
 
 julia> VambBenchmarks.subset(ref; sequences=s -> length(s) ≥ 25)
-  Reference
+Reference
   Genomes:    3
   Sequences:  9
   Ranks:      3

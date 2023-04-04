@@ -5,28 +5,27 @@ const DIR = joinpath(dirname(dirname(pathof(VambBenchmarks))), "files")
 REFSTR = read(joinpath(DIR, "ref.json"), String)
 
 @assert isdir(DIR)
+ngenomes(ref) = length(genomes(ref))
 
 @testset "Construction" begin
     global ref = Reference(IOBuffer(REFSTR))
     global binning = open(i -> Binning(i, ref), joinpath(DIR, "clusters.tsv"))
-    global genomes = sort!(collect(ref.genomes); by=i -> i.name)
     global bins = sort!(collect(binning.bins); by=i -> i.name)
 
     @test ref isa Reference
     @test binning isa Binning
-    @test genomes isa Vector{Genome}
     @test bins isa Vector{Bin}
 end
 
 @testset "Reference" begin
-    @test ngenomes(ref) == 3
+    @test length(genomes(ref)) == 3
     @test nseqs(ref) == 11
 
     buf = IOBuffer()
     VambBenchmarks.save(buf, ref)
     ref2 = Reference(IOBuffer(take!(buf)))
 
-    @test ref.genomes == ref2.genomes
+    @test genomes(ref) == genomes(ref2)
     @test ref.targets_by_name == ref2.targets_by_name
     cladenames(ref) = [[c.name for c in v] for v in ref.clades]
     @test cladenames(ref) == cladenames(ref2)
@@ -34,7 +33,7 @@ end
 
 @testset "Subsetting" begin
     seq_pred = s -> length(s) ≥ 25
-    genome_pred = g -> !in(Flags.virus, flags(g))
+    genome_pred = !is_virus
     ref = Reference(IOBuffer(REFSTR))
     ref2 = subset(ref; sequences=seq_pred)
     ref3 = subset(ref; genomes=genome_pred)

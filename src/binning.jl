@@ -1,6 +1,53 @@
 const DEFAULT_RECALLS = (0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99)
 const DEFAULT_PRECISIONS = (0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99)
 
+"""
+    Binning
+
+A `Binning` represents a set of `Bin`s benchmarked against a `Reference`.
+`Binning`s can be created given a set of `Bin`s and a `Reference`, where the
+bins may potentially be loaded from a `.tsv` file.
+The field `binning.recoverable_genomes` shows the maximal number of recoverable genomes
+at given recall levels given perfect binning.
+The fields `recovered_asms` and `recovered_genomes` are used for benchmarking,
+these are normally output using the `print_matrix` function.
+
+See also: [`print_matrix`](@ref), [`Bin`](@ref), [`Reference`](@ref)
+
+# Examples
+```jldoctest
+julia> bins = gold_standard(ref);
+
+julia> bins isa Binning
+true
+
+julia> VambBenchmarks.n_nc(binning)
+0
+```
+
+# Extended help
+Create with:
+```julia
+open(file) do io
+    Binning(
+        io::IO,
+        ref::Reference;
+        min_size::Integer=1,
+        min_seqs::Integer=1,
+        binsplit_separator::Union{AbstractString, Char, Nothing}=nothing,
+        disjoint::Bool=true,
+        recalls=DEFAULT_RECALLS,
+        precisions=DEFAULT_PRECISIONS
+)
+```
+
+* `min_size`: Filter away bins with breadth lower than this
+* `min_seqs`: Filter away bins with fewer sequences that this
+* `binsplit_separator`: Split bins based on this separator
+  (`nothing` means no binsplitting)
+* `disjoint`: Throw an error if the same sequence is seen in multiple bins
+* `recalls` and `precision`: The thresholds to benchmark with
+"""
 struct Binning
     ref::Reference
     bins::Vector{Bin}
@@ -54,6 +101,16 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
     end
 end
 
+"""
+    print_matrix(::Binning; level=0, assembly=true)
+
+Print the number of reconstructed assemblies or genomes at the given taxonomic level (rank).
+Level 0 corresponds to genomes, level 1 to species, etc.
+If `assembly`, print the number of reconstructed assemblies, else print the level
+of reconstructed genomes.
+
+See also: [`Binning`](@ref)
+"""
 print_matrix(x::Binning; kwargs...) = print_matrix(stdout, x; kwargs...)
 function print_matrix(io::IO, x::Binning; level::Integer=0, assembly::Bool=true)
     ms = assembly ? x.recovered_asms : x.recovered_genomes
@@ -122,6 +179,16 @@ function Binning(bins_,
     Binning(ref, bins, asm_matrices, genome_matrices, recoverable_genomes, checked_recalls, checked_precisions)
 end
 
+"""
+    gold_standard(
+        ref::Reference;
+        recalls=DEFAULT_RECALLS,
+        precisions=DEFAULT_PRECISIONS
+    )::Binning
+
+Create the optimal `Binning` object given an assembly. If sequences map to multiple genomes,
+the binning is not guaranteed to be disjoint.
+"""
 function gold_standard(
     ref::Reference;
     recalls=DEFAULT_RECALLS,
