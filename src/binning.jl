@@ -55,9 +55,9 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
 end
 
 print_matrix(x::Binning; kwargs...) = print_matrix(stdout, x; kwargs...)
-function print_matrix(io::IO, x::Binning; level::Integer=1, assembly::Bool=true)
+function print_matrix(io::IO, x::Binning; level::Integer=0, assembly::Bool=true)
     ms = assembly ? x.recovered_asms : x.recovered_genomes
-    m = ms[level]
+    m = ms[level + 1]
     rnd(x) = string(round(x, digits=3))
     digitwidth(x) = sizeof(rnd(x))
     width = max(
