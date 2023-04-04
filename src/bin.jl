@@ -1,3 +1,42 @@
+"""
+    Bin(name::AbstractString, sequences, targets)
+
+`Bin`s each represent a bin created by the binner. Conceptually, they are simply
+a set of `Sequence` with a name attached.
+Practically, every `Bin` is benchmarked against all `Genome`s and `Clade`s of a given `Reference`,
+so each `Bin` stores data about its intersection with every genome/clade, e.g. its purity and recall.
+
+Like `Source`s, `Bin`s also have an _assembly size_ for a given source. This is the number
+of base pairs in the source covered by any sequence in the `Bin`, which is always a subset
+of the `Source`'s assembly size.
+
+Benchmark statistics for a `Bin`/`Genome` can be done with either _assemblies
+or _genomes_ as the ground truth.
+* True positives (TP) are defined as the sum of assembly sizes over all sources in the genome
+* False positives (FP) are the sum of length of sequences in the bin not mapping to the `Genome`
+* False negatives (FN) is either the genome assembly size or genome size minus TP.
+
+For `Bin`/`Clade` pairs B/C, recall is the maximal recall of B/Ch for all children Ch of C.
+Precision is the sum of lengths of sequences mapping to any child of the clade divided
+by the sum of lengths of all sequences in the bin.
+
+See also: [`Binning`](@ref), [`Genome`](@ref), [`Clade`](@ref)
+
+# Examples
+```jldoctest
+julia> bin = first(binning.bins)
+Bin "C1"
+  Sequences: 2
+  Breadth:   65
+  Intersecting 1 genome
+
+julia> first(bin.sequences)
+Sequence("s1", 25)
+
+julia> f1(first(ref.genomes), bin)
+0.625
+```
+"""
 struct Bin
     name::String
     sequences::Vector{Sequence}
@@ -80,16 +119,40 @@ end
 
 nseqs(x::Bin) = length(x.sequences)
 
+"""
+    intersecting([Genome, Clade]=Genome, x::Bin)
+
+Get an iterator of the `Genome`s or `Clade`s that bin `x` intersects with.
+`intersecting(::Bin)` defaults to genomes.
+
+# Example
+```jldoctest
+julia> collect(intersecting(bin))
+1-element Vector{Genome}:
+ Genome(gA)
+
+julia> collect(intersecting(Clade, bin))
+2-element Vector{Clade{Genome}}:
+ Species "D", 2 genomes
+ Genus "F", 3 genomes
+```
+"""
+intersecting(x::Bin) = intersecting(Genome, x)
+intersecting(::Type{Genome}, x::Bin) = keys(x.genomes)
+intersecting(::Type{<:Clade}, x::Bin) = keys(x.clades)
+
 Base.show(io::IO, x::Bin) = print(io, "Bin(", x.name, ')')
 function Base.show(io::IO, ::MIME"text/plain", x::Bin)
     if get(io, :compact, false)
         show(io, x)
     else
+        ngenomes = length(x.genomes)
+        suffix = ngenomes > 1 ? "s" : ""
         print(io,
             "Bin \"", x.name,
             "\"\n  Sequences: ", nseqs(x),
             "\n  Breadth:   ", x.breadth,
-            "\n  Intersecting ", length(x.genomes), " genomes"
+            "\n  Intersecting ", length(x.genomes), " genome", suffix
         )
     end
 end
@@ -100,6 +163,28 @@ function confusion_matrix(genome::Genome, bin::Bin; assembly::Bool=true)
     (tp, fp, fn)
 end
 
+"""
+    recall_precision(x::Union{Genome, Clade}, bin::Bin; assembly::Bool=true)
+
+Get the recall, precision as a 2-tuple of `Float64` for the given genome/bin pair.
+See the docstring for `Bin` for how this is computed.
+
+See also: [`Bin`](@ref), [`Binning`](@ref)
+
+# Examples
+```jldoctest
+julia> bingenome = only(intersecting(bin));
+
+julia> recall_precision(bingenome, bin)
+(0.45454545454545453, 1.0)
+
+julia> recall_precision(bingenome, bin; assembly=false)
+(0.4, 1.0)
+
+julia> recall_precision(bingenome.parent, bin; assembly=false)
+(0.4, 1.0)
+```
+"""
 function recall_precision(genome::Genome, bin::Bin; assembly::Bool=true)
     (tp, fp, fn) = confusion_matrix(genome, bin; assembly=assembly)
     recall = tp / (tp + fn)
@@ -112,7 +197,7 @@ function recall_precision(clade::Clade{Genome}, bin::Bin; assembly::Bool=true)
     assembly ? (asm_recall, precision) : (genome_recall, precision)
 end
 
-function fscore(genome::Genome, bin::Bin, b::AbstractFloat)
+function fscore(genome::Genome, bin::Bin, b::Real)
     recall, precision = recall_precision(genome, bin)
     # Some people say the Fscore is undefined in this case.
     # We define it to be 0.0
@@ -121,4 +206,4 @@ function fscore(genome::Genome, bin::Bin, b::AbstractFloat)
     end
     (1 + b^2) * (recall*precision) / ((b^2*precision)+recall)
 end
-f1(genome::Genome, bin::Bin) = fscore(genome, bin, 1.0)
+f1(genome::Genome, bin::Bin) = fscore(genome, bin, 1)

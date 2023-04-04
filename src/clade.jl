@@ -1,5 +1,32 @@
 # Type parameter G here is always Genome - I only make it parametric so I can have
 # mutually recursive types b/w Clade and Genome
+"""
+    Clade{Genome}(name::AbstractString, child::Union{Clade{Genome}, Genome})
+
+A `Clade` represents any clade above `Genome`. Every `Genome` is expected to belong
+to the same number of clades, e.g. there may be exactly 7 levels of clades above every `Genome`.
+`Clade`s always have at least one child (which is either a `Genome` or a `Clade` one rank lower),
+and a parent, unless it's the unique top clade from which all other clades and genomes descend from.
+The rank of a `Genome` is 0, clades that contain genomes have rank 1, and clades containing rank-1
+clades have rank 2 etc.
+By default, zero-indexed ranks correspond to OTU, species, genus, family, order, class, phylum and domain.
+
+# Examples
+```
+julia> top_clade(ref)
+Genus "F", 3 genomes
+├─ Species "D", 2 genomes
+│  ├─ Genome(gA)
+│  └─ Genome(gB)
+└─ Species "E", 1 genome
+   └─ Genome(gC)
+
+julia> top_clade(ref).children
+2-element Vector{Clade{Genome}}:
+ Species "D", 2 genomes
+ Species "E", 1 genome
+```
+"""
 mutable struct Clade{G}
     name::String
     rank::Int
@@ -57,7 +84,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Clade)
     end
 end
 
-AbstractTrees.children(x::Clade) = x.children === nothing ? () : x.children
+AbstractTrees.children(x::Clade) = x.children
 AbstractTrees.parent(x::Clade) = x.parent
 AbstractTrees.treebreadth(x::Clade) = x.ngenomes
 nchildren(x::Clade) = length(x.children)

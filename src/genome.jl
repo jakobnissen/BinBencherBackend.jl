@@ -12,10 +12,95 @@
 end
 Genome(name::AbstractString) = Genome(name, FlagSet())
 
+"""
+    Genome(name::AbstractString [flags::FlagSet])
+
+`Genome`s represent individual target genomes (organisms, plasmids, viruses etc),
+analogous to lowest-level clade that can be reconstructed.
+Conceptually, `Genome`s contain one or more `Source`s, and to a single parent `Clade`.
+They are identified uniquely among genomes by their name.
+
+A genome have a _genome size_, which is the sum of the length of all its sources.
+We consider this to be the true size of the biological genome (assuming its full
+sequence is contained in its sources), as well as an _assembly size_, which represent
+the sum of the assembly sizes of each source.
+
+See also: [`Clade`](@ref), [`Source`](@ref), [`mrca`](@ref)
+
+# Examples
+```jldoctest
+julia> gA, gB, gC = collect(ref.genomes);
+
+julia> flags(gA)
+FlagSet with 1 element:
+  VambBenchmarks.Flags.organism
+
+julia> mrca(gA, gB)
+Species "D", 2 genomes
+├─ Genome(gA)
+└─ Genome(gB)
+```
+"""
+Genome
+
 const Target = Tuple{Source{Genome}, UnitRange{Int}}
 const Node = Union{Genome, Clade{Genome}}
 
+"""
+    flags(g::Genome)::FlagSet
+
+Returns the `Flag`s of the `Genome` as a `FlagSet`.
+
+See also: [`Flag`](@ref), [`FlagSet`](@ref)
+
+# Example
+```jldoctest
+julia> flags(genome)
+FlagSet with 1 element:
+  VambBenchmarks.Flags.organism
+```
+"""
 flags(g::Genome) = g.flags
+
+"""
+    is_organism(g::Genome)::Bool
+
+Check if `g` is known to be an organism.
+
+# Example
+```jldoctest
+julia> is_organism(genome)
+true
+``` 
+"""
+is_organism(g::Genome) = Flags.organism ∈ flags(g)
+
+"""
+    is_virus(g::Genome)::Bool
+
+Check if `g` is known to be a virus.
+
+# Example
+```jldoctest
+julia> is_virus(genome)
+false
+``` 
+"""
+is_virus(g::Genome) = Flags.virus ∈ flags(g)
+
+"""
+    is_plasmid(g::Genome)::Bool
+
+Check if `g` is known to be a plasmid.
+
+# Example
+```jldoctest
+julia> is_plasmid(genome)
+false
+``` 
+"""
+is_plasmid(g::Genome) = Flags.plasmid ∈ flags(g)
+
 function add_child!(c::Clade{Genome}, g::Node)
     children = c.children
     if g isa Genome
