@@ -6,10 +6,19 @@ REFSTR = read(joinpath(DIR, "ref.json"), String)
 
 @assert isdir(DIR)
 
-@testset "Reference" begin
-    ref = Reference(IOBuffer(REFSTR))
-    
+@testset "Construction" begin
+    global ref = Reference(IOBuffer(REFSTR))
+    global binning = open(i -> Binning(i, ref), joinpath(DIR, "clusters.tsv"))
+    global genomes = sort!(collect(ref.genomes); by=i -> i.name)
+    global bins = sort!(collect(binning.bins); by=i -> i.name)
+
     @test ref isa Reference
+    @test binning isa Binning
+    @test genomes isa Vector{Genome}
+    @test bins isa Vector{Bin}
+end
+
+@testset "Reference" begin
     @test ngenomes(ref) == 3
     @test nseqs(ref) == 11
 
@@ -23,23 +32,24 @@ REFSTR = read(joinpath(DIR, "ref.json"), String)
     @test cladenames(ref) == cladenames(ref2)
 end
 
-@testset "Filtering sequences" begin
+@testset "Subsetting" begin
+    seq_pred = s -> length(s) ≥ 25
+    genome_pred = g -> !in(Flags.virus, flags(g))
     ref = Reference(IOBuffer(REFSTR))
-    ref2 = filter_sequences(s -> s.length ≥ 25, ref)
+    ref2 = subset(ref; sequences=seq_pred)
+    ref3 = subset(ref; genomes=genome_pred)
+    ref4 = subset(ref3; sequences=seq_pred)
+    ref5 = subset(ref; sequences=seq_pred, genomes=genome_pred)
 
-    @test ref2 isa Reference
-    @test ref2 !== ref
-    @test all(i -> first(i).length >= 25, values(ref2.targets_by_name))
-end
+    refs = (ref, ref2, ref3, ref4, ref5)
+    for i in 1:4, j in i+1:5
+        @test refs[i] !== refs[j]
+    end
+    @test (ngenomes(ref3) + 1 == ngenomes(ref) == ngenomes(ref4) + 1 == ngenomes(ref5) + 1)
+    @test (nseqs(ref2) == nseqs(ref4) == nseqs(ref5))
+    @test (nseqs(ref) == nseqs(ref3) != nseqs(ref2))
 
-@testset "Filtering genomes" begin
-    ref = Reference(IOBuffer(REFSTR))
-    ref2 = filter_genomes(g -> !in(Flags.virus, flags(g)), ref)
-
-    @test ref2 isa Reference
-    @test ref2 !== ref
-    @test ngenomes(ref2) + 1 == ngenomes(ref)
-    @test top_clade(ref2).ngenomes + 1 == top_clade(ref).ngenomes
+    @test (top_clade(ref3).ngenomes + 1 == top_clade(ref4).ngenomes + 1 == top_clade(ref5).ngenomes + 1 == top_clade(ref).ngenomes)
 end
 
 @testset "Binning" begin

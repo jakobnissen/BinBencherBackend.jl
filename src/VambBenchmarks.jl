@@ -29,8 +29,6 @@ ifilter(f) = x -> Iterators.filter(f, x)
         ref = open(refpath) do io
             Reference(io; min_seq_length=10)
         end
-        filter_genomes(Returns(true), ref)
-        filter_sequences(Returns(true), ref)
         gold_standard(ref)
         bins = open(binpath) do io
             Binning(io, ref)
@@ -54,8 +52,8 @@ export Sequence,
     ngenomes,
     top_clade,
     gold_standard,
-    filter_sequences,
-    filter_genomes,
+    subset,
+    subset!,
     f1,
     fscore,
     mrca,

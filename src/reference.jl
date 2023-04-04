@@ -57,43 +57,54 @@ function finish!(ref::Reference)
 end
 
 """
-    filter_sequences(f::Function, ref::Reference)::Reference
+    subset!(ref::Reference, sequences::Function, genomes::Function)::Reference
 
-Create a new, independent (deep copied) `Reference`, keeping only
-the sequences for which `f(sequence)` is `true`.
+Mutate `ref` in place, removing genomes and sequences.
+Keep only sequences S where `sequences(S)` returns `true` and genomes G for which
+`genomes(G)` returns `true`.
+
+See also: [`subset`](@ref), [`Reference`](@ref)
 
 # Examples
-```julia
+```jldoctest
 julia> ref
 Reference
-  Genomes:   1057
-  Sequences: 1247324
-  Ranks:     8
+  Genomes:    3
+  Sequences:  11
+  Ranks:      3
+  Seq length: 10
+  Assembled:  66.8 %
 
-julia> filter_size(s -> s.length ≥ 5000, ref)
+julia> subset(ref; genomes=g -> Flags.organism in flags(g))
 Reference
-  Genomes:   1057
-  Sequences: 30501
-  Ranks:     8
+  Genomes:    2
+  Sequences:  11
+  Ranks:      3
+  Seq length: 10
+  Assembled:  91.3 %
+
+julia> VambBenchmarks.subset(ref; sequences=s -> length(s) ≥ 25)
+  Reference
+  Genomes:    3
+  Sequences:  9
+  Ranks:      3
+  Seq length: 25
+  Assembled:  61.1 %
 ```
 """
-function filter_sequences(@nospecialize(f::Function), ref::Reference)
-    ref = uninit!(deepcopy(ref))
-    filter!(ref.targets_by_name) do (_, v)
-        f(first(v))::Bool
-    end
-    for genome in ref.genomes, source in genome.sources
-        filter!(i -> f(first(i))::Bool, source.sequences)
-    end
-    finish!(ref)
-end
-
-function filter_genomes(@nospecialize(f::Function), ref::Reference)
-    ref = uninit!(deepcopy(ref))
+function subset!(
+    ref::Reference;
+    sequences::Function=Returns(true),
+    genomes::Function=Returns(true)
+)
+    ref = uninit!(ref)
     genomes_to_remove = Genome[]
     sources_to_remove = Set{Source}()
+    filter!(ref.targets_by_name) do (_, v)
+        sequences(first(v))::Bool
+    end
     filter!(ref.genomes) do g
-        keep = f(g)::Bool
+        keep = genomes(g)::Bool
         keep || push!(genomes_to_remove, g)
         keep
     end
@@ -114,8 +125,23 @@ function filter_genomes(@nospecialize(f::Function), ref::Reference)
             union!(ref.clades[i], parent.children)
         end
     end
+    for genome in ref.genomes, source in genome.sources
+        filter!(i -> sequences(first(i))::Bool, source.sequences)
+    end
     finish!(ref)
 end
+
+# TODO: This deepcopy is quite slow, and it would be nice to optimise it.#
+# However, manual deepcopying of references is quite error prone, and having
+# an incomplete deepcopy could lead to nasty bugs, so I'll just eat it for now.
+"""
+    subset(ref::Reference; kwargs...)
+
+Non-mutating copying version of `subset`.
+
+See also: [`subset!`](@ref)
+"""
+subset(ref::Reference; kwargs...) = subset!(deepcopy(ref); kwargs...)
 
 function uninit!(ref::Reference)
     @uninit! ref.fraction_assembled
