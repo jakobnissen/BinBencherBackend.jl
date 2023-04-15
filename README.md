@@ -1,5 +1,6 @@
 # VambBenchmarks
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://jakobnissen.github.io/VambBenchmarks.jl/dev)
+
 This package is used to benchmark and interactively explore the results of metagenomic binning given a dataset.
 
 ## Installation
