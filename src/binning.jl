@@ -182,23 +182,46 @@ end
 """
     gold_standard(
         ref::Reference;
+        disjoint=true,
         recalls=DEFAULT_RECALLS,
         precisions=DEFAULT_PRECISIONS
     )::Binning
 
-Create the optimal `Binning` object given an assembly. If sequences map to multiple genomes,
-the binning is not guaranteed to be disjoint.
+Create the optimal `Binning` object given an assembly.
+If `disjoint`, assign each sequence to only a single genome.
+
+## Extended help
+Currently, the `disjoint` option uses a simple greedy algorithm to assign
+sequences to genomes.
 """
 function gold_standard(
     ref::Reference;
+    disjoint=true,
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS
 )::Binning
     sequences_of_genome = Dict{Genome, Set{Sequence}}()
-    for (_, (sequence, targets)) in ref.targets_by_name, (source, _) in targets
-        push!(get!(valtype(sequences_of_genome), sequences_of_genome, source.genome), sequence)
+    for (_, (sequence, targets)) in ref.targets_by_name
+        isempty(targets) && continue
+        if disjoint
+            source = first(targets[last(findmax(i -> length(last(i)), targets))])
+            push!(
+                get!(valtype(sequences_of_genome), sequences_of_genome, source.genome),
+                sequence
+            )
+        else
+            for (source, _) in targets
+                push!(
+                    get!(valtype(sequences_of_genome), sequences_of_genome, source.genome),
+                    sequence
+                )
+            end
+        end
     end
-    bins = [Bin("bin_" * genome.name, collect(seqs), ref.targets_by_name) for (genome, seqs) in sequences_of_genome]
+    bins = [
+        Bin("bin_" * genome.name, collect(seqs), ref.targets_by_name)
+        for (genome, seqs) in sequences_of_genome
+    ]
     sort!(bins, by=i -> i.name)
     Binning(bins, ref; recalls=recalls, precisions=precisions, disjoint=false)
 end

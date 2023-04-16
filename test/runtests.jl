@@ -61,9 +61,14 @@ end
 
 @testset "Gold standard" begin
     ref = Reference(IOBuffer(REFSTR))
-    bins = gold_standard(ref)
-
-    @test bins isa Binning
-    @test nbins(bins) == ngenomes(ref)
-    @test bins.recoverable_genomes == bins.recovered_genomes[1][1, :]
+    gold_standards = [
+        gold_standard(ref; disjoint=true)
+        gold_standard(ref; disjoint=false)
+    ]
+    for bins in gold_standards
+        @test bins isa Binning
+        @test nbins(bins) == ngenomes(ref)
+    end
+    non_disjoint = last(gold_standards)
+    @test non_disjoint.recoverable_genomes == non_disjoint.recovered_genomes[1][1, :]
 end
