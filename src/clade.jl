@@ -34,9 +34,10 @@ mutable struct Clade{G}
     parent::Union{Clade{G}, Nothing}
     children::Union{Vector{Clade{G}}, Vector{G}}
 
-    function Clade(name::String, child::Union{Clade{G}, G}) where G
+    function Clade(name::String, child::Union{Clade{G}, G}) where {G}
         (rank, ngenomes) = if child isa G
-            (@isinit(child.parent)) && existing_parent_error(name, child.name, child.parent.name)
+            (@isinit(child.parent)) &&
+                existing_parent_error(name, child.name, child.parent.name)
             (1, 1)
         else
             parent = child.parent
@@ -50,20 +51,13 @@ mutable struct Clade{G}
 end
 
 @noinline function existing_parent_error(child_name, parent_name, other_parent_name)
-    error("Attempted to add parent \"$parent_name\" to child \"$child_name\", which already has parent \"$other_parent_name\"")
+    error(
+        "Attempted to add parent \"$parent_name\" to child \"$child_name\", which already has parent \"$other_parent_name\"",
+    )
 end
 
-const RANKS = [
-    "OTU",
-    "Species",
-    "Genus",
-    "Family",
-    "Order",
-    "Class",
-    "Phylum",
-    "Domain",
-    "LUCA"
-]
+const RANKS =
+    ["OTU", "Species", "Genus", "Family", "Order", "Class", "Phylum", "Domain", "LUCA"]
 
 function Base.show(io::IO, x::Clade)
     suffix = x.ngenomes == 1 ? "" : "s"
@@ -75,7 +69,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Clade)
         show(io, x)
     else
         buf = IOBuffer()
-        AbstractTrees.print_tree(buf, x, maxdepth=3)
+        AbstractTrees.print_tree(buf, x; maxdepth=3)
         seekstart(buf)
         for (i, line) in zip(1:25, eachline(buf))
             println(io, line)

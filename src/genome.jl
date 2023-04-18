@@ -127,18 +127,19 @@ Base.:(==)(g1::Genome, g2::Genome) = g1.name == g2.name
 Base.hash(x::Genome, h::UInt) = hash(x.name, h ⊻ UInt(21323125590))
 
 function add_source!(genome::Genome, name::AbstractString, length::Integer)
-    @isinit(genome.genome_size) && error("Can't add source to genome after calling finish! on it.")
+    @isinit(genome.genome_size) &&
+        error("Can't add source to genome after calling finish! on it.")
     source = Source(genome, name, length)
-    in(source, genome.sources) && error(lazy"Genome $(genome.name) already have source $(source.name)")
+    in(source, genome.sources) &&
+        error(lazy"Genome $(genome.name) already have source $(source.name)")
     push!(genome.sources, source)
     genome
 end
 
 function finish!(genome::Genome)
     @isinit(genome.genome_size) && return genome
-    @isinit(genome.parent) || error(
-        lazy"finish! called on genome \"$(genome.name)\" without assigned parent."
-    )
+    @isinit(genome.parent) ||
+        error(lazy"finish! called on genome \"$(genome.name)\" without assigned parent.")
     for source in genome.sources
         @isinit(source.assembly_size) || finish!(source)
     end
@@ -153,13 +154,28 @@ function Base.show(io::IO, ::MIME"text/plain", x::Genome)
         show(io, x)
     else
         asm = (x.assembly_size / x.genome_size) * 100
-        print(io,
-            "Genome \"", x.name,
-            "\"\n  Parent:        ", '"', x.parent.name, '"',
-            "\n  Genome size:   ", x.genome_size,
-            "\n  Assembly size: ", x.assembly_size, " (", round(asm, digits=1), " %)",
-            "\n  Sources:       ", length(x.sources),
-            "\n  Flags:         ", Int(x.flags.x), " (", join(x.flags, ", "), ')'
+        print(
+            io,
+            "Genome \"",
+            x.name,
+            "\"\n  Parent:        ",
+            '"',
+            x.parent.name,
+            '"',
+            "\n  Genome size:   ",
+            x.genome_size,
+            "\n  Assembly size: ",
+            x.assembly_size,
+            " (",
+            round(asm; digits=1),
+            " %)",
+            "\n  Sources:       ",
+            length(x.sources),
+            "\n  Flags:         ",
+            Int(x.flags.x),
+            " (",
+            join(x.flags, ", "),
+            ')',
         )
     end
 end

@@ -23,7 +23,9 @@ struct Sequence
     function Sequence(name::AbstractString, length::Integer)
         str = String(name)
         if isempty(str) || isspace(first(str)) || isspace(last(str))
-            error(lazy"Sequence name \"$(str)\" cannot be empty or have leading or trailing whitespace")
+            error(
+                lazy"Sequence name \"$(str)\" cannot be empty or have leading or trailing whitespace",
+            )
         end
         length < 1 && throw(ArgumentError("Cannot instantiate an empty sequence"))
         new(str, Int(length))

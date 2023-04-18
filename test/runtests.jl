@@ -41,14 +41,19 @@ end
     ref5 = subset(ref; sequences=seq_pred, genomes=genome_pred)
 
     refs = (ref, ref2, ref3, ref4, ref5)
-    for i in 1:4, j in i+1:5
+    for i in 1:4, j in (i + 1):5
         @test refs[i] !== refs[j]
     end
     @test (ngenomes(ref3) + 1 == ngenomes(ref) == ngenomes(ref4) + 1 == ngenomes(ref5) + 1)
     @test (nseqs(ref2) == nseqs(ref4) == nseqs(ref5))
     @test (nseqs(ref) == nseqs(ref3) != nseqs(ref2))
 
-    @test (top_clade(ref3).ngenomes + 1 == top_clade(ref4).ngenomes + 1 == top_clade(ref5).ngenomes + 1 == top_clade(ref).ngenomes)
+    @test (
+        top_clade(ref3).ngenomes + 1 ==
+        top_clade(ref4).ngenomes + 1 ==
+        top_clade(ref5).ngenomes + 1 ==
+        top_clade(ref).ngenomes
+    )
 end
 
 @testset "Binning" begin

@@ -45,12 +45,19 @@ struct Bin
     genomes::Dict{Genome, @NamedTuple{asmsize::Int, foreign::Int}}
     # Recall is max recall of all children
     # Precision is (sum of length of mapping seqs) / breadth
-    clades::Dict{Clade{Genome}, @NamedTuple{asm_recall::Float64, genome_recall::Float64, precision::Float64}}
+    clades::Dict{
+        Clade{Genome},
+        @NamedTuple{asm_recall::Float64, genome_recall::Float64, precision::Float64}
+    }
     # Sum of lengths of sequences, cached for efficiency
     breadth::Int
 end
 
-function Bin(name::AbstractString, sequences, targets::Dict{String, Tuple{Sequence, Vector{Target}}})
+function Bin(
+    name::AbstractString,
+    sequences,
+    targets::Dict{String, Tuple{Sequence, Vector{Target}}},
+)
     # To make it work with arbitrary iterables of sequence
     seqs = vec(collect(sequences))::Vector{Sequence}
     breadth = sum(i -> i.length, seqs; init=0)
@@ -64,12 +71,13 @@ function Bin(name::AbstractString, sequences, targets::Dict{String, Tuple{Sequen
     genomes = Dict{Genome, @NamedTuple{asmsize::Int, foreign::Int}}()
     # Set `foreign`, which we can compute simply by knowing which sequences map to the genomes
     for (genome, set) in genome_mapping
-        genomes[genome] = (;asmsize=0, foreign=breadth - sum(i -> seqs[i].length, set; init=0))
+        genomes[genome] =
+            (; asmsize=0, foreign=breadth - sum(i -> seqs[i].length, set; init=0))
     end
     # Incrementally update `asmsize`; we need to compute this on a per-source level
     for (source, spans) in source_mapping
         (asmsize, foreign) = genomes[source.genome]
-        genomes[source.genome] = (;asmsize=asmsize + assembly_size(spans), foreign=foreign)
+        genomes[source.genome] = (; asmsize=asmsize + assembly_size(spans), foreign=foreign)
     end
     # We store sets of mapping sequences - the set mapping to a clade is the union of those
     # mapping to its children.
@@ -77,11 +85,12 @@ function Bin(name::AbstractString, sequences, targets::Dict{String, Tuple{Sequen
     for (genome, (asmsize, _)) in genomes
         asm_recall = asmsize / genome.assembly_size
         genome_recall = asmsize / genome.genome_size
-        (old_asm_recall, old_genome_recall, mapping) = get!(() -> (0.0, 0.0, BitSet()), clade_mapping, genome.parent)
+        (old_asm_recall, old_genome_recall, mapping) =
+            get!(() -> (0.0, 0.0, BitSet()), clade_mapping, genome.parent)
         clade_mapping[genome.parent] = (
             max(old_asm_recall, asm_recall),
             max(old_genome_recall, genome_recall),
-            union!(mapping, genome_mapping[genome])
+            union!(mapping, genome_mapping[genome]),
         )
     end
     # Now, iteratively compute clades at a higher and higher level.
@@ -94,12 +103,13 @@ function Bin(name::AbstractString, sequences, targets::Dict{String, Tuple{Sequen
             parent = clade.parent
             # If top level clade: Do not continue to next generation
             parent === nothing && continue
-            (parent_asm_recall, parent_genome_recall, parent_mapping) = get!(() -> (0.0, 0.0, BitSet()), clade_mapping, parent)
+            (parent_asm_recall, parent_genome_recall, parent_mapping) =
+                get!(() -> (0.0, 0.0, BitSet()), clade_mapping, parent)
             (child_asm_recall, child_genome_recall, child_mapping) = clade_mapping[clade]
             clade_mapping[parent] = (
                 max(parent_asm_recall, child_asm_recall),
                 max(parent_genome_recall, child_genome_recall),
-                union!(parent_mapping, child_mapping)
+                union!(parent_mapping, child_mapping),
             )
             push!(next_generation, parent)
         end
@@ -109,10 +119,14 @@ function Bin(name::AbstractString, sequences, targets::Dict{String, Tuple{Sequen
         empty!(next_generation)
     end
     # Now, having computed the sets of mapping contigs, we can compute the actual precision values
-    clades = Dict{Clade{Genome}, @NamedTuple{asm_recall::Float64, genome_recall::Float64, precision::Float64}}()
+    clades = Dict{
+        Clade{Genome},
+        @NamedTuple{asm_recall::Float64, genome_recall::Float64, precision::Float64}
+    }()
     for (clade, (asm_recall, genome_recall, set)) in clade_mapping
         precision = sum(i -> seqs[i].length, set; init=0) / breadth
-        clades[clade] = (;asm_recall=asm_recall, genome_recall=genome_recall, precision=precision)
+        clades[clade] =
+            (; asm_recall=asm_recall, genome_recall=genome_recall, precision=precision)
     end
     Bin(String(name), sequences, genomes, clades, breadth)
 end
@@ -148,11 +162,18 @@ function Base.show(io::IO, ::MIME"text/plain", x::Bin)
     else
         ngenomes = length(x.genomes)
         suffix = ngenomes > 1 ? "s" : ""
-        print(io,
-            "Bin \"", x.name,
-            "\"\n  Sequences: ", nseqs(x),
-            "\n  Breadth:   ", x.breadth,
-            "\n  Intersecting ", length(x.genomes), " genome", suffix
+        print(
+            io,
+            "Bin \"",
+            x.name,
+            "\"\n  Sequences: ",
+            nseqs(x),
+            "\n  Breadth:   ",
+            x.breadth,
+            "\n  Intersecting ",
+            length(x.genomes),
+            " genome",
+            suffix,
         )
     end
 end
@@ -193,7 +214,8 @@ function recall_precision(genome::Genome, bin::Bin; assembly::Bool=true)
 end
 
 function recall_precision(clade::Clade{Genome}, bin::Bin; assembly::Bool=true)
-    (;asm_recall, genome_recall, precision) = get(bin.clades, clade, (;asm_recall=0.0, genome_recall=0.0, precision=0.0))
+    (; asm_recall, genome_recall, precision) =
+        get(bin.clades, clade, (; asm_recall=0.0, genome_recall=0.0, precision=0.0))
     assembly ? (asm_recall, precision) : (genome_recall, precision)
 end
 
@@ -204,6 +226,6 @@ function fscore(genome::Genome, bin::Bin, b::Real)
     if iszero(recall + precision)
         return 0.0
     end
-    (1 + b^2) * (recall*precision) / ((b^2*precision)+recall)
+    (1 + b^2) * (recall * precision) / ((b^2 * precision) + recall)
 end
 f1(genome::Genome, bin::Bin) = fscore(genome, bin, 1)
