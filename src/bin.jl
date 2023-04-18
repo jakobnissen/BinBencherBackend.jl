@@ -41,7 +41,7 @@ struct Bin
     name::String
     sequences::Vector{Sequence}
     # Asmsize: Bases covered by sequences in this bin.
-    # Foreign: Sum of sequences not mapping to the given genome
+    # Foreign: Sum of sequences mapping to other sequences, but not this genome
     genomes::Dict{Genome, @NamedTuple{asmsize::Int, foreign::Int}}
     # Recall is max recall of all children
     # Precision is (sum of length of mapping seqs) / breadth
@@ -49,7 +49,7 @@ struct Bin
         Clade{Genome},
         @NamedTuple{asm_recall::Float64, genome_recall::Float64, precision::Float64}
     }
-    # Sum of lengths of sequences, cached for efficiency
+    # Sum of lengths of sequences mapping to anything, cached for efficiency
     breadth::Int
 end
 
@@ -60,7 +60,9 @@ function Bin(
 )
     # To make it work with arbitrary iterables of sequence
     seqs = vec(collect(sequences))::Vector{Sequence}
-    breadth = sum(i -> i.length, seqs; init=0)
+    mapping_breadth =
+        sum(length(s) for s in seqs if !isempty(last(targets[s.name])); init=0)
+
     # Which sequences map to the given genome, ints in bitset is indices into `seq`.
     genome_mapping = Dict{Genome, BitSet}()
     source_mapping = Dict{Source{Genome}, Vector{UnitRange{Int}}}()
@@ -72,7 +74,7 @@ function Bin(
     # Set `foreign`, which we can compute simply by knowing which sequences map to the genomes
     for (genome, set) in genome_mapping
         genomes[genome] =
-            (; asmsize=0, foreign=breadth - sum(i -> seqs[i].length, set; init=0))
+            (; asmsize=0, foreign=mapping_breadth - sum(i -> seqs[i].length, set; init=0))
     end
     # Incrementally update `asmsize`; we need to compute this on a per-source level
     for (source, spans) in source_mapping
@@ -124,10 +126,11 @@ function Bin(
         @NamedTuple{asm_recall::Float64, genome_recall::Float64, precision::Float64}
     }()
     for (clade, (asm_recall, genome_recall, set)) in clade_mapping
-        precision = sum(i -> seqs[i].length, set; init=0) / breadth
+        precision = sum(i -> seqs[i].length, set; init=0) / mapping_breadth
         clades[clade] =
             (; asm_recall=asm_recall, genome_recall=genome_recall, precision=precision)
     end
+    breadth = sum(seqs |> imap(length); init=0)
     Bin(String(name), sequences, genomes, clades, breadth)
 end
 
