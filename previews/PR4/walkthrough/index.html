@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Walkthrough · VambBenchmarks.jl</title><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">VambBenchmarks.jl</a></span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Walkthrough</a><ul class="internal"><li><a class="tocitem" href="#Loading-the-reference"><span>Loading the reference</span></a></li><li><a class="tocitem" href="#Genomes"><span>Genomes</span></a></li><li><a class="tocitem" href="#Sources"><span>Sources</span></a></li><li><a class="tocitem" href="#Clades"><span>Clades</span></a></li><li><a class="tocitem" href="#Binnings"><span>Binnings</span></a></li><li><a class="tocitem" href="#Bins"><span>Bins</span></a></li></ul></li><li><a class="tocitem" href="../reference/">Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Walkthrough</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Walkthrough</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/jakobnissen/VambBenchmarks.jl/blob/master/docs/src/walkthrough.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Example-walkthrough"><a class="docs-heading-anchor" href="#Example-walkthrough">Example walkthrough</a><a id="Example-walkthrough-1"></a><a class="docs-heading-anchor-permalink" href="#Example-walkthrough" title="Permalink"></a></h1><p><em>Note: This is run 2023-04-05 with commit db18e475</em></p><div class="admonition is-danger"><header class="admonition-header">Danger</header><div class="admonition-body"><p>The documentation on this page uses a large dataset, and which is stored hosted online. Hence, the code in this documentation is not tested, and may become outdated.</p></div></div><h2 id="Loading-the-reference"><a class="docs-heading-anchor" href="#Loading-the-reference">Loading the reference</a><a id="Loading-the-reference-1"></a><a class="docs-heading-anchor-permalink" href="#Loading-the-reference" title="Permalink"></a></h2><p>First, let&#39;s load the reference:</p><pre><code class="language-julia-repl hljs">julia&gt; using VambBenchmarks
+
+julia&gt; ref_path = &quot;/home/jakni/Downloads/vambdata/newref/ref_ptracker_megahit_Skin.json&quot;;
+
+julia&gt; bins_path = &quot;/home/jakni/Downloads/vambdata/newbins/megahit_skin.tsv&quot;;
+
+julia&gt; ref = open(i -&gt; Reference(i), ref_path)
+Reference
+  Genomes:    2341
+  Sequences:  959970
+  Ranks:      9
+  Seq length: 200
+  Assembled:  25.0 %</code></pre><p>This gives us a few statistics about the reference:</p><ul><li>Number of genomes</li><li>Number of sequences</li><li>Number of taxonomic ranks (strain, species, genus...)</li><li>Length of shortest sequence</li><li>Total length of genomes that are assembled</li></ul><p>The genomes here contain both plasmids and organisms, and the sequence length of 200 bp is too short. Let&#39;s filter the reference using <a href="../reference/#VambBenchmarks.subset!-Tuple{Reference}"><code>subset!</code></a> to only retain organisms, and sequences of length 1500 or more:</p><pre><code class="language-julia-repl hljs">julia&gt; subset!(ref;
+           genomes = is_organism,
+           sequences = s -&gt; length(s) &gt;= 1500
+       )
+Reference
+  Genomes:    1394
+  Sequences:  118267
+  Ranks:      9
+  Seq length: 1500
+  Assembled:  16.1 %</code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>The function <a href="../reference/#VambBenchmarks.subset!-Tuple{Reference}"><code>subset!</code></a> will mutate the reference, whereas the function <a href="../reference/#VambBenchmarks.subset-Tuple{Reference}"><code>subset</code></a> will create a new independent reference. At the moment, the latter is much slower.</p></div></div><p>You can see we removed 7/8th of all sequences, but only 1/3rd of the total assembly length. We also removed almost half of all genomes (namely, all those that wasn&#39;t organisms).</p><h2 id="Genomes"><a class="docs-heading-anchor" href="#Genomes">Genomes</a><a id="Genomes-1"></a><a class="docs-heading-anchor-permalink" href="#Genomes" title="Permalink"></a></h2><p>We can explore the genomes contained in the reference with the <code>genomes</code> function, which returns an iterable of <code>Genome</code> (in this case, a <code>Set</code>):</p><pre><code class="language-julia-repl hljs">julia&gt; genomes(ref)
+Set{Genome} with 1394 elements:
+  Genome(OTU_97.34832.0)
+  Genome(OTU_97.33610.0)
+  Genome(OTU_97.39616.0)
+  Genome(OTU_97.23938.0)
+  Genome(OTU_97.24774.0)
+  Genome(OTU_97.36286.0)
+  Genome(OTU_97.6382.0)
+  Genome(OTU_97.33661.1)
+  Genome(OTU_97.37247.0)
+  Genome(OTU_97.1829.0)
+  Genome(OTU_97.6602.0)
+  Genome(OTU_97.44820.0)
+  Genome(OTU_97.24834.0)
+  Genome(OTU_97.44856.1)
+  Genome(OTU_97.3377.0)
+  Genome(OTU_97.19529.1)
+  Genome(OTU_97.32371.0)
+  Genome(OTU_97.45083.0)
+  Genome(OTU_97.15121.1)
+  ⋮</code></pre><p>Let&#39;s look at a <code>Genome</code> in more detail:</p><pre><code class="language-julia-repl hljs">julia&gt; genome, genome2 = sort!(collect(genomes(ref)); by=i -&gt; i.name);
+
+julia&gt; genome
+Genome &quot;OTU_97.10046.0&quot;
+  Parent:        &quot;Staphylococcus capitis&quot;
+  Genome size:   2474232
+  Assembly size: 9239 (0.4 %)
+  Sources:       1
+  Flags:         1 (organism)</code></pre><p>The <em>flags</em> can be extracted with the <code>flags(genome)</code> function - each genome contains zero or more flags:</p><pre><code class="language-julia-repl hljs">julia&gt; flags(genome)
+FlagSet with 1 element:
+  VambBenchmarks.Flags.organism</code></pre><p>... in this case, this genome is an organism as opposed to a plasmid. You can see all possible flags with <code>instances(Flags.Flag)</code>.</p><p>See also the helper functions <a href="../reference/#VambBenchmarks.is_organism-Tuple{Genome}"><code>is_organism</code></a>, <a href="../reference/#VambBenchmarks.is_virus-Tuple{Genome}"><code>is_virus</code></a> and <a href="../reference/#VambBenchmarks.is_plasmid-Tuple{Genome}"><code>is_plasmid</code></a></p><h2 id="Sources"><a class="docs-heading-anchor" href="#Sources">Sources</a><a id="Sources-1"></a><a class="docs-heading-anchor-permalink" href="#Sources" title="Permalink"></a></h2><p>The <code>genome</code> has one source - let&#39;s look at that</p><pre><code class="language-julia-repl hljs">julia&gt; source = only(genome.sources)
+Source &quot;CP007601.1&quot;
+genome:          Genome(OTU_97.10046.0)
+  Length:        2474232
+  Assembly size: 9239
+  Sequences:     2</code></pre><p>A <code>Source</code> is one of the genomic sequences that genomes are composed of. In the reference database where our genome was gotten from, it was assembled into a single contig called &quot;CP001781.1&quot; of 2.47 Mbp - presumably the complete, circular genome. We can see that 2 sequences map to this source, covering about 9.2 kbp.</p><p>We can get the sequences mapping to this source:</p><pre><code class="language-julia-repl hljs">julia&gt; source.sequences
+2-element Vector{Tuple{Sequence, UnitRange{Int64}}}:
+ (Sequence(&quot;S13C8728&quot;, 2472), 2069906:2072374)
+ (Sequence(&quot;S13C26910&quot;, 7349), 2085051:2091820)</code></pre><p>Where, e.g. the first entrance tells us that the sequence &quot;S13C8728&quot; with a length of 2472 maps to positions 2069906:2072374 (both inclusive).</p><h2 id="Clades"><a class="docs-heading-anchor" href="#Clades">Clades</a><a id="Clades-1"></a><a class="docs-heading-anchor-permalink" href="#Clades" title="Permalink"></a></h2><p>Genomes are organised into a taxonomic hierarchy. We can find the immediate parent of a genome by accessing the field <code>genome.parent</code>. Let&#39;s look at another genome:</p><pre><code class="language-julia-repl hljs">julia&gt; genome2
+Genome &quot;OTU_97.10083.0&quot;
+  Parent:        &quot;Moraxella bovoculi&quot;
+  Genome size:   2220786
+  Assembly size: 0 (0.0 %)
+  Sources:       1
+  Flags:         1 (organism)
+
+julia&gt; clade = genome2.parent
+Species &quot;Moraxella bovoculi&quot;, 6 genomes
+├─ Genome(OTU_97.36230.1)
+├─ Genome(OTU_97.11114.0)
+├─ Genome(OTU_97.10083.0)
+├─ Genome(OTU_97.9999.0)
+├─ Genome(OTU_97.36230.0)
+└─ Genome(OTU_97.30020.0)</code></pre><p>The parent is an instance of a <code>Clade</code>. <code>Clade</code>s are at a specific rank: Rank 1 for species, 2 for genus, 3 for family, etc. Every clade has one or more children: These are the clades one rank lower. Conceptually, rank zero corresponds to <code>Genome</code>s (OTUs, for this reference dataset)</p><pre><code class="language-julia-repl hljs">julia&gt; clade.children
+6-element Vector{Genome}:
+ Genome(OTU_97.36230.1)
+ Genome(OTU_97.11114.0)
+ Genome(OTU_97.10083.0)
+ Genome(OTU_97.9999.0)
+ Genome(OTU_97.36230.0)
+ Genome(OTU_97.30020.0)</code></pre><p>We can find the most recent common ancestor (MRCA) of <code>genome</code> and <code>g2</code> like this:</p><pre><code class="language-julia-repl hljs">julia&gt; mrca(genome, genome2)
+Domain &quot;Bacteria&quot;, 1394 genomes
+├─ Phylum &quot;Deinococcus-Thermus&quot;, 12 genomes
+│  └─ Class &quot;Deinococci&quot;, 12 genomes
+│     └─ Order &quot;Deinococcales&quot;, 12 genomes
+│        ⋮
+│
+├─ Phylum &quot;Tenericutes&quot;, 5 genomes
+│  └─ Class &quot;Mollicutes&quot;, 5 genomes
+│     └─ Order &quot;Mycoplasmatales&quot;, 5 genomes
+│        ⋮
+│
+├─ Phylum &quot;Fusobacteria&quot;, 21 genomes
+│  └─ Class &quot;Fusobacteriia&quot;, 21 genomes
+│     └─ Order &quot;Fusobacteriales&quot;, 21 genomes
+│        ⋮
+│
+├─ Phylum &quot;Bacteroidetes&quot;, 85 genomes
+│  ├─ Class &quot;Sphingobacteriia&quot;, 1 genome
+│  │  └─ Order &quot;Sphingobacteriales&quot;, 1 genome
+│  │     ⋮
+│  │
+│  ├─ Class &quot;Bacteroidia&quot;, 47 genomes
+│  │  └─ Order &quot;Bacteroidales&quot;, 47 genomes
+│  │     ⋮
+│  │
+⋮</code></pre><p>They are very distantly related, so the domain &quot;Bacteria&quot;, one of the highest ranked <code>Clade</code>s, are their most recent common ancestor.</p><p>The top clade can be found with the <code>top_clade(ref)</code> function. In our case, the dataset only consists of bacteria and plasmids, and we filtered away all plasmids, so the universal ancestor only has one child, namely the domain Bacteria.</p><h2 id="Binnings"><a class="docs-heading-anchor" href="#Binnings">Binnings</a><a id="Binnings-1"></a><a class="docs-heading-anchor-permalink" href="#Binnings" title="Permalink"></a></h2><p>A <code>Binning</code> is a set of bins benchmarked against a reference. We can load a set of Vamb bins and turn it into a <code>Binning</code> object like this:</p><pre><code class="language-julia-repl hljs">julia&gt; binning = open(bins_path) do io
+           Binning(io, ref; binsplit_separator=&#39;C&#39;)
+       end
+Binning
+  Reference
+    Genomes:    1394
+    Sequences:  118267
+    Ranks:      9
+    Seq length: 1500
+    Assembled:  16.1 %
+  Bins:        14535
+  NC genomes:  7
+  Precisions: [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
+  Recalls:    [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
+  Recoverable genomes: [325, 281, 235, 193, 142, 98, 51, 21, 0]
+  Reconstruction (assemblies):
+    P\R   0.3  0.4  0.5  0.6  0.7  0.8  0.9 0.95 0.99
+    0.3   107   96   87   82   74   63   38   16    4
+    0.4   103   92   84   79   72   61   37   15    3
+    0.5   100   90   82   77   70   59   35   14    2
+    0.6    96   86   78   73   66   55   32   13    2
+    0.7    92   83   75   71   64   53   32   13    2
+    0.8    87   78   72   68   61   50   29   11    2
+    0.9    76   68   63   57   51   40   25    9    2
+    0.95   49   47   43   37   32   24   15    6    1
+    0.99   15   13   11    7    6    5    4    2    1</code></pre><p>A wealth of information is readily available:</p><ul><li><code>binning.ref</code> gives the underlying <code>Reference</code></li><li><code>binning.recalls</code> and <code>binning.precision</code> gives the recall/precision thresholds used in benchmarking</li><li>You can get the number of genomes that are assembled at the various recall levels with <code>recoverable_genomes</code>: This sets an upper limit of how many genomes can be reconstructed given a hypothetical perfect binning</li></ul><pre><code class="language-julia-repl hljs">julia&gt; println(binning.recoverable_genomes)
+[325, 281, 235, 193, 142, 98, 51, 21, 0]</code></pre><p>The function <code>print_matrix</code> will display the number of recovered genomes/assemblies. It takes two optional keyword: <code>level</code>, the taxonomic rank (defaults to 0, meaning strain level), and <code>assembly</code> which defaults to <code>true</code>. If set to <code>false</code>, benchmark number of recovered genomes, not number of recovered assemblies.</p><pre><code class="language-julia-repl hljs">julia&gt; print_matrix(binning; level=1, assembly=false)
+P\R   0.3  0.4  0.5  0.6  0.7  0.8  0.9 0.95 0.99
+0.3    78   74   72   65   51   33   10    1    0
+0.4    75   73   71   64   50   33   10    1    0
+0.5    73   71   69   62   49   32   10    1    0
+0.6    69   67   65   58   45   29   10    1    0
+0.7    68   66   64   57   45   29   10    1    0
+0.8    65   63   61   54   44   29   10    1    0
+0.9    55   53   51   43   36   26   10    1    0
+0.95   36   34   33   28   23   17    7    0    0
+0.99    5    4    4    4    4    3    2    0    0</code></pre><h2 id="Bins"><a class="docs-heading-anchor" href="#Bins">Bins</a><a id="Bins-1"></a><a class="docs-heading-anchor-permalink" href="#Bins" title="Permalink"></a></h2><p>The <code>Binning</code> object obviously contains our bins. Let&#39;s pick a particularly good bin:</p><pre><code class="language-julia-repl hljs">julia&gt; bin = binning.bins[261]
+Bin &quot;S13Cvae_479&quot;
+  Sequences: 47
+  Breadth:   2482216
+  Intersecting 1 genome</code></pre><p>The &quot;breadth&quot; here is the sum of the length of its sequences. <code>bin.sequences</code> gets an iterable of its sequences:</p><pre><code class="language-julia-repl hljs">julia&gt; collect(bin.sequences)
+47-element Vector{Sequence}:
+ Sequence(&quot;S13C2748&quot;, 73726)
+ Sequence(&quot;S13C13383&quot;, 18077)
+ Sequence(&quot;S13C59849&quot;, 95631)
+ Sequence(&quot;S13C29443&quot;, 13209)
+ Sequence(&quot;S13C56904&quot;, 44356)
+ Sequence(&quot;S13C14948&quot;, 9756)
+ Sequence(&quot;S13C37848&quot;, 19070)
+ Sequence(&quot;S13C2782&quot;, 22054)
+ Sequence(&quot;S13C40546&quot;, 46579)
+ Sequence(&quot;S13C12978&quot;, 15372)
+ ⋮
+ Sequence(&quot;S13C33782&quot;, 34963)
+ Sequence(&quot;S13C27111&quot;, 21961)
+ Sequence(&quot;S13C10862&quot;, 55887)
+ Sequence(&quot;S13C54667&quot;, 69970)
+ Sequence(&quot;S13C19757&quot;, 199299)
+ Sequence(&quot;S13C64535&quot;, 73792)
+ Sequence(&quot;S13C2686&quot;, 20376)
+ Sequence(&quot;S13C62986&quot;, 19619)
+ Sequence(&quot;S13C14459&quot;, 39940)</code></pre><p>The &quot;Intersecting 1 genome&quot; means that the sequences map to 1 genome. We can get that with the function <a href="../reference/#VambBenchmarks.intersecting-Tuple{Bin}"><code>intersecting</code></a>, then get the precision/recall with <a href="../reference/#VambBenchmarks.recall_precision-Tuple{Genome, Bin}"><code>recall_precision</code></a>:</p><pre><code class="language-julia-repl hljs">julia&gt; intersecting_genome = only(intersecting(bin))
+Genome &quot;OTU_97.9674.1&quot;
+  Parent:        &quot;Corynebacterium humireducens&quot;
+  Genome size:   2714910
+  Assembly size: 2575299 (94.9 %)
+  Sources:       1
+  Flags:         1 (organism)
+
+julia&gt; recall_precision(only(intersecting(bin)), bin)
+(0.9614992278566489, 1.0)</code></pre><p>Or do the same for a higher clade - let&#39;s say a genus:</p><pre><code class="language-julia-repl hljs">julia&gt; genus = only(Iterators.filter(i -&gt; i.rank == 2, intersecting(Clade, bin)));
+
+julia&gt; recall_precision(genus, bin)
+(0.9614992278566489, 1.0)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../reference/">Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 18 April 2023 07:58">Tuesday 18 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
