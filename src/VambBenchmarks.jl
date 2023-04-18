@@ -16,7 +16,7 @@ include("bin.jl")
 include("reference.jl")
 include("binning.jl")
 
-vector(x) = x isa Vector ? x : vec(collect(x))
+vector(x)::Vector = x isa Vector ? x : vec(collect(x))
 imap(f) = x -> Iterators.map(f, x)
 ifilter(f) = x -> Iterators.filter(f, x)
 

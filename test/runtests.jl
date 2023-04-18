@@ -7,6 +7,38 @@ REFSTR = read(joinpath(DIR, "ref.json"), String)
 @assert isdir(DIR)
 ngenomes(ref) = length(genomes(ref))
 
+@testset "Flags" begin
+    empt = FlagSet()
+    a = FlagSet([Flags.organism, Flags.plasmid])
+    b = FlagSet([Flags.virus])
+    c = FlagSet([Flags.plasmid, Flags.virus])
+    d = FlagSet([Flags.organism, Flags.plasmid, Flags.plasmid])
+
+    @test only(b) in c
+    @test Set(d) == Set([Flags.organism, Flags.plasmid, Flags.plasmid])
+    @test only(b) == Flags.virus
+    @test_throws Exception only(a)
+    @test_throws Exception only(d)
+
+    flagsets = [empt, a, b, c, d]
+    all_pairs = [(i, j) for i in flagsets for j in flagsets]
+
+    @test all(length(i) == length(Set(i)) for i in flagsets)
+    @test all(isempty(i) == isempty(Set(i)) for i in flagsets)
+
+    for f in [issubset, isdisjoint]
+        @test all(all_pairs) do (a, b)
+            f(a, b) == f(Set(a), Set(b))
+        end
+    end
+
+    for f in [union, intersect, setdiff]
+        @test all(all_pairs) do (a, b)
+            Set(f(a, b)) == f(Set(a), Set(b))
+        end
+    end
+end
+
 @testset "Construction" begin
     global ref = Reference(IOBuffer(REFSTR))
     global binning = open(i -> Binning(i, ref), joinpath(DIR, "clusters.tsv"))
@@ -29,6 +61,49 @@ end
     @test ref.targets_by_name == ref2.targets_by_name
     cladenames(ref) = [[c.name for c in v] for v in ref.clades]
     @test cladenames(ref) == cladenames(ref2)
+end
+
+@testset "Sequence" begin
+    s1 = Sequence("abc", 5)
+    s2 = Sequence("abc abc", 6)
+    s3 = Sequence(SubString(" abc", 2:4), 7)
+    seqs = [s1, s2, s3]
+
+    @test_throws Exception Sequence("abc", 0)
+    @test_throws Exception Sequence("abc", -5)
+
+    # Bad names
+    @test_throws Exception Sequence("", 5)
+    @test_throws Exception Sequence(" abc", 5)
+    @test_throws Exception Sequence("abc ", 5)
+
+    @test map(length, seqs) == [5, 6, 7]
+    @test s1 == s3 # we might change this behaviour
+    @test isequal(s1, s3)
+    @test hash(s1) === hash(s3)
+end
+
+@testset "Genome" begin
+    gens = sort!(collect(genomes(ref)); by=i -> i.name)
+    @test is_organism(gens[1])
+    @test is_organism(gens[2])
+    @test is_virus(gens[3])
+    @test !is_organism(gens[3])
+    @test !is_virus(gens[1])
+end
+
+@testset "Clade" begin
+    (gA, gB, gC) = sort!(collect(genomes(ref)); by=i -> i.name)
+
+    @test mrca(gA, gB).name == "D"
+    @test mrca(gA, gC).name == mrca(gB, gC).name == "F"
+
+    D = mrca(gA, gB)
+    @test mrca(gA, D) === D
+
+    F = mrca(D, mrca(gA, gC))
+    @test mrca(F, F) == F
+    @test mrca(gA, F) == F
 end
 
 @testset "Subsetting" begin
@@ -62,6 +137,30 @@ end
 
     @test bins isa Binning
     @test nbins(bins) == 6
+
+    allgenomes = collect(genomes(ref))
+    for (ir, recall) in enumerate(bins.recalls)
+        for (ip, precision) in enumerate(bins.precisions)
+            for (asm, mats) in
+                [(true, bins.recovered_asms), (false, bins.recovered_genomes)]
+                found = falses(length(allgenomes))
+                for (ig, genome) in enumerate(allgenomes), bin in bins.bins
+                    (nr, np) = recall_precision(genome, bin; assembly=asm)
+                    found[ig] |= (nr >= recall && np >= precision)
+                end
+                @test sum(found) == mats[1][ip, ir]
+
+                for (rank, mat) in zip(ref.clades, mats[2:end])
+                    found = falses(length(rank))
+                    for bin in bins.bins, (ic, clade) in enumerate(rank)
+                        (nr, np) = recall_precision(clade, bin; assembly=asm)
+                        found[ic] |= (nr >= recall && np >= precision)
+                    end
+                    @test sum(found) == mat[ip, ir]
+                end
+            end
+        end
+    end
 end
 
 @testset "Gold standard" begin
