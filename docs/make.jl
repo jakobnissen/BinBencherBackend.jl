@@ -16,18 +16,15 @@ end
 
 DocMeta.setdocmeta!(VambBenchmarks, :DocTestSetup, meta; recursive=true)
 
-makedocs(
-    sitename = "VambBenchmarks.jl",
-    modules = [VambBenchmarks],
-    pages = [
+makedocs(;
+    sitename="VambBenchmarks.jl",
+    modules=[VambBenchmarks],
+    pages=[
         "Home" => "index.md",
         "Walkthrough" => "walkthrough.md",
-        "Reference" => "reference.md"
-        ],
-    checkdocs = :all
+        "Reference" => "reference.md",
+    ],
+    checkdocs=:all,
 )
 
-deploydocs(
-    repo = "github.com/jakobnissen/VambBenchmarks.jl.git",
-    push_preview = true
-)
+deploydocs(; repo="github.com/jakobnissen/VambBenchmarks.jl.git", push_preview=true)

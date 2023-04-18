@@ -81,9 +81,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
         for line in eachline(buf)
             println(io, "  ", line)
         end
-        print(io,
-            "  Bins:        ", nbins(x)
-        )
+        print(io, "  Bins:        ", nbins(x))
         nc = n_nc(x)
         if nc !== nothing
             print(io, "\n  NC genomes:  ", nc)
@@ -115,16 +113,17 @@ print_matrix(x::Binning; kwargs...) = print_matrix(stdout, x; kwargs...)
 function print_matrix(io::IO, x::Binning; level::Integer=0, assembly::Bool=true)
     ms = assembly ? x.recovered_asms : x.recovered_genomes
     m = ms[level + 1]
-    rnd(x) = string(round(x, digits=3))
+    rnd(x) = string(round(x; digits=3))
     digitwidth(x) = sizeof(rnd(x))
-    width = max(
-        max(4, ndigits(maximum(m) + 1)),
-        maximum(digitwidth, x.recalls) + 1
-    )
+    width = max(max(4, ndigits(maximum(m) + 1)), maximum(digitwidth, x.recalls) + 1)
     col1_width = max(3, maximum(digitwidth, x.precisions))
     println(io, rpad("P\\R", col1_width), join([lpad(i, width) for i in x.recalls]))
     for (prec_index, prec) in enumerate(x.precisions)
-        println(io, rpad(rnd(prec), col1_width), join([lpad(i, width) for i in m[prec_index, :]]))
+        println(
+            io,
+            rpad(rnd(prec), col1_width),
+            join([lpad(i, width) for i in m[prec_index, :]]),
+        )
     end
 end
 
@@ -148,18 +147,19 @@ function Binning(
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS,
 )
-    bins = sort!(parse_bins(io, ref, binsplit_separator), by=i -> i.name)
+    bins = sort!(parse_bins(io, ref, binsplit_separator); by=i -> i.name)
     filter!(bins) do bin
         nseqs(bin) >= min_seqs && bin.breadth >= min_size
     end
     Binning(bins, ref; recalls=recalls, precisions=precisions, disjoint)
 end
 
-function Binning(bins_,
+function Binning(
+    bins_,
     ref::Reference;
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS,
-    disjoint::Bool = true
+    disjoint::Bool=true,
 )
     checked_recalls = validate_recall_precision(recalls)
     checked_precisions = validate_recall_precision(precisions)
@@ -172,11 +172,20 @@ function Binning(bins_,
         recoverable_genomes[i] += 1
     end
     # If a genome is recoverable at recall 0.5, it's recoverable at recalls < 0.5
-    for i in length(recoverable_genomes)-1:-1:1
+    for i in (length(recoverable_genomes) - 1):-1:1
         recoverable_genomes[i] += recoverable_genomes[i + 1]
     end
-    (asm_matrices, genome_matrices) = benchmark(ref, bins, checked_recalls, checked_precisions)
-    Binning(ref, bins, asm_matrices, genome_matrices, recoverable_genomes, checked_recalls, checked_precisions)
+    (asm_matrices, genome_matrices) =
+        benchmark(ref, bins, checked_recalls, checked_precisions)
+    Binning(
+        ref,
+        bins,
+        asm_matrices,
+        genome_matrices,
+        recoverable_genomes,
+        checked_recalls,
+        checked_precisions,
+    )
 end
 
 """
@@ -198,7 +207,7 @@ function gold_standard(
     ref::Reference;
     disjoint=true,
     recalls=DEFAULT_RECALLS,
-    precisions=DEFAULT_PRECISIONS
+    precisions=DEFAULT_PRECISIONS,
 )::Binning
     sequences_of_genome = Dict{Genome, Set{Sequence}}()
     for (_, (sequence, targets)) in ref.targets_by_name
@@ -207,22 +216,22 @@ function gold_standard(
             source = first(targets[last(findmax(i -> length(last(i)), targets))])
             push!(
                 get!(valtype(sequences_of_genome), sequences_of_genome, source.genome),
-                sequence
+                sequence,
             )
         else
             for (source, _) in targets
                 push!(
                     get!(valtype(sequences_of_genome), sequences_of_genome, source.genome),
-                    sequence
+                    sequence,
                 )
             end
         end
     end
     bins = [
-        Bin("bin_" * genome.name, collect(seqs), ref.targets_by_name)
-        for (genome, seqs) in sequences_of_genome
+        Bin("bin_" * genome.name, collect(seqs), ref.targets_by_name) for
+        (genome, seqs) in sequences_of_genome
     ]
-    sort!(bins, by=i -> i.name)
+    sort!(bins; by=i -> i.name)
     Binning(bins, ref; recalls=recalls, precisions=precisions, disjoint=false)
 end
 
@@ -256,20 +265,23 @@ function benchmark(
     ref::Reference,
     bins::Vector{Bin},
     recalls::Vector{Float64},
-    precisions::Vector{Float64}
+    precisions::Vector{Float64},
 )
     # For each genome/clade, we compute the maximal recall at the given precision levels.
     # i.e. if 3rd element of vector is 0.5, it means that at precision precisions[3], this genome/clade
     # is found with a maximal recall of 0.5.
     # We keep two vectors: First for recovered assemblies, second for recovered genomes
     max_genome_recall_at_precision = Dict{Genome, Tuple{Vector{Float64}, Vector{Float64}}}()
-    max_clade_recall_at_precision = Dict{Clade{Genome}, Tuple{Vector{Float64}, Vector{Float64}}}()
+    max_clade_recall_at_precision =
+        Dict{Clade{Genome}, Tuple{Vector{Float64}, Vector{Float64}}}()
     # Initialize with zeros for all known genomes/clades
     for genome in ref.genomes
-        max_genome_recall_at_precision[genome] = (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
+        max_genome_recall_at_precision[genome] =
+            (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
     end
     for level in ref.clades, clade in level
-        max_clade_recall_at_precision[clade] = (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
+        max_clade_recall_at_precision[clade] =
+            (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
     end
     for bin in bins
         for (genome, (asmsize, foreign)) in bin.genomes
@@ -322,7 +334,11 @@ function benchmark(
     (map(permutedims, asm_matrices), map(permutedims, genome_matrices))
 end
 
-function update_matrix!(matrix::Matrix{<:Integer}, v::Vector{<:AbstractFloat}, recalls::Vector{Float64})
+function update_matrix!(
+    matrix::Matrix{<:Integer},
+    v::Vector{<:AbstractFloat},
+    recalls::Vector{Float64},
+)
     for (precision_index, recall) in enumerate(v)
         # TODO: By keeping track of the maximal recall index (which must shrink)
         # we can reduce search space here, if performance critical
@@ -331,10 +347,10 @@ function update_matrix!(matrix::Matrix{<:Integer}, v::Vector{<:AbstractFloat}, r
     end
     matrix
 end
-            
+
 function make_reverse_cumulative!(v::Vector{<:Real})
-    for i in length(v)-1:-1:1
-        v[i] = max(v[i], v[i+1])
+    for i in (length(v) - 1):-1:1
+        v[i] = max(v[i], v[i + 1])
     end
     v
 end

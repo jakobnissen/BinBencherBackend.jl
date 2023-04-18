@@ -44,7 +44,7 @@ function Reference()
         Dict{String, Tuple{Sequence, Vector{Target}}}(),
         Vector{Clade{Genome}}[],
         uninit,
-        uninit
+        uninit,
     )
 end
 
@@ -53,13 +53,20 @@ function Base.show(io::IO, ::MIME"text/plain", x::Reference)
     if get(io, :compact, false)
         show(io, x)
     else
-        print(io,
+        print(
+            io,
             "Reference",
-            "\n  Genomes:    ", length(genomes(x)),
-            "\n  Sequences:  ", nseqs(x),
-            "\n  Ranks:      ", nranks(x),
-            "\n  Seq length: ", x.shortest_seq_len,
-            "\n  Assembled:  ", round(x.fraction_assembled * 100; digits=1), " %"
+            "\n  Genomes:    ",
+            length(genomes(x)),
+            "\n  Sequences:  ",
+            nseqs(x),
+            "\n  Ranks:      ",
+            nranks(x),
+            "\n  Seq length: ",
+            x.shortest_seq_len,
+            "\n  Assembled:  ",
+            round(x.fraction_assembled * 100; digits=1),
+            " %",
         )
     end
 end
@@ -80,8 +87,10 @@ function finish!(ref::Reference)
         assembly_size += genome.assembly_size
         genome_size += genome.genome_size
     end
-    shortest_seq_len = minimum(i -> length(first(i)), values(ref.targets_by_name); init=typemax(Int))
-    shortest_seq_len == typemax(Int) && error("Cannot initialize a Reference with no sequences")
+    shortest_seq_len =
+        minimum(i -> length(first(i)), values(ref.targets_by_name); init=typemax(Int))
+    shortest_seq_len == typemax(Int) &&
+        error("Cannot initialize a Reference with no sequences")
     @init! ref.shortest_seq_len = shortest_seq_len
     @init! ref.fraction_assembled = assembly_size / genome_size
     ref
@@ -130,7 +139,7 @@ Reference
 function subset!(
     ref::Reference;
     sequences::Function=Returns(true),
-    genomes::Function=Returns(true)
+    genomes::Function=Returns(true),
 )
     ref = uninit!(ref)
     genomes_to_remove = Genome[]
@@ -154,9 +163,9 @@ function subset!(
     for genome in genomes_to_remove
         recursively_delete_child!(genome)
     end
-    for i in length(ref.clades)-1:-1:1
+    for i in (length(ref.clades) - 1):-1:1
         empty!(ref.clades[i])
-        for parent in ref.clades[i+1]
+        for parent in ref.clades[i + 1]
             union!(ref.clades[i], parent.children)
         end
     end
@@ -210,7 +219,7 @@ end
 function parse_bins(
     io::IO,
     ref::Reference,
-    binsplit_sep::Union{Nothing, AbstractString, Char}=nothing
+    binsplit_sep::Union{Nothing, AbstractString, Char}=nothing,
 )
     itr = tab_pairs(eachline(io))
     if binsplit_sep !== nothing
@@ -264,7 +273,7 @@ function Reference(json_struct::ReferenceJSON, min_seq_length::Int)
         if haskey(source_by_name, source.name)
             error(
                 lazy"Duplicate source: \"$(source.name)\" belongs to both genome ",
-                lazy"\"$(source_by_name[source.name].genome.name)\" and \"$(genome.name)\"."
+                lazy"\"$(source_by_name[source.name].genome.name)\" and \"$(genome.name)\".",
             )
         end
         source_by_name[source.name] = source
@@ -275,11 +284,15 @@ function Reference(json_struct::ReferenceJSON, min_seq_length::Int)
         seq_length ≥ min_seq_length || continue
         targets = map(targs) do (source_name, from, to)
             if to < from
-                error(lazy"Sequence \"$(seq_name)\" spans $(from)-$(to), must span at least 1 base.")
+                error(
+                    lazy"Sequence \"$(seq_name)\" spans $(from)-$(to), must span at least 1 base.",
+                )
             end
             source = get(source_by_name, source_name, nothing)
             if source === nothing
-                error(lazy"Sequence \"$(seq_name)\" maps to source \"$(source_name)\", but no such source in reference")
+                error(
+                    lazy"Sequence \"$(seq_name)\" maps to source \"$(source_name)\", but no such source in reference",
+                )
             end
             (source, Int(from):Int(to))
         end
@@ -299,17 +312,24 @@ function save(io::IO, ref::Reference)
     json_dict[:version] = JSON_VERSION
     # Genomes
     json_dict[:genomes] = [
-        (genome.name, Int(genome.flags.x), [(s.name, s.length) for s in genome.sources])
-    for genome in ref.genomes]
+        (genome.name, Int(genome.flags.x), [(s.name, s.length) for s in genome.sources]) for genome in ref.genomes
+    ]
 
     # Sequences
     json_dict[:sequences] = [
-        (seq.name, seq.length, [(source.name, first(span), last(span)) for (source, span) in targets])
-        for (_, (seq, targets)) in ref.targets_by_name
+        (
+            seq.name,
+            seq.length,
+            [(source.name, first(span), last(span)) for (source, span) in targets],
+        ) for (_, (seq, targets)) in ref.targets_by_name
     ]
 
     # Taxmaps
-    taxmaps = [Tuple{String, Union{String, Nothing}}[(genome.name, genome.parent.name) for genome in ref.genomes]]
+    taxmaps = [
+        Tuple{String, Union{String, Nothing}}[
+            (genome.name, genome.parent.name) for genome in ref.genomes
+        ],
+    ]
     json_dict[:taxmaps] = taxmaps
     for clades in ref.clades
         v = eltype(taxmaps)()
@@ -326,7 +346,7 @@ end
 
 function parse_taxonomy(
     genomes::Set{Genome},
-    dict::Vector{Vector{Tuple{String, Union{String, Nothing}}}}
+    dict::Vector{Vector{Tuple{String, Union{String, Nothing}}}},
 )::Vector{Vector{Clade{Genome}}}
     child_by_name = Dict{String, Node}(g.name => g for g in genomes)
     parent_by_name = empty(child_by_name)
@@ -338,11 +358,12 @@ function parse_taxonomy(
             child = get(child_by_name, child_name, nothing)
             child === nothing && error(
                 "At rank $rank, found child name \"$child_name\", but this does not exist " *
-                "on the previous rank."
+                "on the previous rank.",
             )
             # Create parent if it does not already exist
             parent_name = maybe_parent_name === nothing ? child_name : maybe_parent_name
-            parent = get(parent_by_name, parent_name, nothing)::Union{Clade{Genome}, Nothing}
+            parent =
+                get(parent_by_name, parent_name, nothing)::Union{Clade{Genome}, Nothing}
             if parent === nothing
                 parent = Clade(parent_name, child)
                 parent_by_name[parent_name] = parent
@@ -354,9 +375,8 @@ function parse_taxonomy(
         end
         # Enforce all childrens have parents
         for child in values(child_by_name)
-            isdefined(child, :parent) || error(
-                "At rank $rank, child $(child.name) has no parent"
-            )
+            isdefined(child, :parent) ||
+                error("At rank $rank, child $(child.name) has no parent")
         end
         parent_by_name, child_by_name = child_by_name, parent_by_name
         empty!(parent_by_name)
@@ -379,6 +399,6 @@ function parse_taxonomy(
         end
     end
     @assert length(last(result)) == 1
-    foreach(i -> sort!(by=j -> j.name, i), result)
+    foreach(i -> sort!(i; by=j -> j.name), result)
     return result
 end

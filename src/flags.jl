@@ -1,8 +1,8 @@
 baremodule Flags
-    using Base: @enum
-    @enum Flag::UInt8 organism virus plasmid
+using Base: @enum
+@enum Flag::UInt8 organism virus plasmid
 
-    export Flag
+export Flag
 end
 
 using .Flags
@@ -13,7 +13,7 @@ using .Flags
     A flag is a boolean associated to a `Genome`, stored in a `Flags` object.
     A flag may be e.g. `Flag.organism`, signaling that the genome is known to be
     an organism.
-    
+
     See also: [`FlagSet`](@ref), [`Genome`](@ref)
     """
 Flags.Flag
@@ -55,9 +55,9 @@ function FlagSet(itr)
     result
 end
 
-
 function Base.iterate(x::FlagSet, state::UInt64=x.x)
-    iszero(state) ? nothing : (reinterpret(Flag, trailing_zeros(state) % UInt8), state & (state - 1))
+    iszero(state) ? nothing :
+    (reinterpret(Flag, trailing_zeros(state) % UInt8), state & (state - 1))
 end
 
 push(x::FlagSet, y::Flag) = FlagSet(x.x | (UInt64(1) << (reinterpret(UInt8, y) & 63)))
