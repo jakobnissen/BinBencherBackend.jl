@@ -148,7 +148,7 @@ julia> collect(intersecting(bin))
 1-element Vector{Genome}:
  Genome(gA)
 
-julia> collect(intersecting(Clade, bin))
+julia> sort!(collect(intersecting(Clade, bin)); by=i -> i.name)
 2-element Vector{Clade{Genome}}:
  Species "D", 2 genomes
  Genus "F", 3 genomes
