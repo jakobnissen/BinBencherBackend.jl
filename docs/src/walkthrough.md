@@ -1,5 +1,5 @@
 # Example walkthrough
-_Note: This is run 2023-04-05 with commit db18e475_
+_Note: This is run 2023-04-05 with commit AFTER bc99339_
 
 !!! danger
     The documentation on this page uses a large dataset, and which is stored hosted online.
@@ -229,20 +229,17 @@ Binning
     Assembled:  16.1 %
   Bins:        14535
   NC genomes:  10
-  Precisions: [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
-  Recalls:    [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
-  Recoverable genomes: [325, 281, 235, 193, 142, 98, 51, 21, 0]
+  Precisions: [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
+  Recalls:    [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
+  Recoverable genomes: [193, 142, 98, 51, 21, 0]
   Reconstruction (assemblies):
-    P\R   0.3  0.4  0.5  0.6  0.7  0.8  0.9 0.95 0.99
-    0.3   268  244  229  201  167  111   52   20    4
-    0.4   247  223  212  188  157  102   50   20    4
-    0.5   230  207  196  175  146   95   45   17    4
-    0.6   212  192  181  160  135   87   39   14    4
-    0.7   191  173  162  143  122   80   36   13    3
-    0.8   161  145  136  118  101   71   33   13    3
-    0.9   112   98   90   79   71   55   29   12    3
-    0.95   94   84   80   70   63   50   26   12    3
-    0.99   69   64   62   57   51   39   23   10    2
+    P\R   0.6  0.7  0.8  0.9 0.95 0.99
+    0.6   160  135   87   39   14    4
+    0.7   143  122   80   36   13    3
+    0.8   118  101   71   33   13    3
+    0.9    79   71   55   29   12    3
+    0.95   70   63   50   26   12    3
+    0.99   57   51   39   23   10    2
 ```
 
 A wealth of information is readily available:
@@ -253,7 +250,7 @@ A wealth of information is readily available:
 
 ```jldoctest walk
 julia> println(binning.recoverable_genomes)
-[325, 281, 235, 193, 142, 98, 51, 21, 0]
+[193, 142, 98, 51, 21, 0]
 ```
 
 The function `print_matrix` will display the number of recovered genomes/assemblies.
@@ -263,16 +260,13 @@ not number of recovered assemblies.
 
 ```jldoctest walk
 julia> print_matrix(binning; level=1, assembly=false)
-P\R   0.3  0.4  0.5  0.6  0.7  0.8  0.9 0.95 0.99
-0.3    78   74   72   66   52   34   10    1    0
-0.4    77   73   71   64   50   33   10    1    0
-0.5    76   72   70   63   49   32   10    1    0
-0.6    75   71   69   62   48   31   10    1    0
-0.7    72   68   66   59   46   30   10    1    0
-0.8    72   68   66   59   46   30   10    1    0
-0.9    72   68   66   59   46   30   10    1    0
-0.95   70   66   64   56   44   30   10    1    0
-0.99   56   52   51   46   37   25    9    1    0
+P\R   0.6  0.7  0.8  0.9 0.95 0.99
+0.6    62   48   31   10    1    0
+0.7    59   46   30   10    1    0
+0.8    59   46   30   10    1    0
+0.9    59   46   30   10    1    0
+0.95   56   44   30   10    1    0
+0.99   46   37   25    9    1    0
 ```
 
 ## Bins
