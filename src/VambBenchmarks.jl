@@ -29,6 +29,7 @@ ifilter(f) = x -> Iterators.filter(f, x)
         ref = open(refpath) do io
             Reference(io; min_seq_length=10)
         end
+        subset!(ref; sequences=Returns(true), genomes=Returns(true))
         gold_standard(ref)
         bins = open(binpath) do io
             Binning(io, ref)
