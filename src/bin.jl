@@ -200,30 +200,30 @@ See also: [`Bin`](@ref), [`Binning`](@ref)
 julia> bingenome = only(intersecting(bin));
 
 julia> recall_precision(bingenome, bin)
-(0.45454545454545453, 1.0)
+(recall = 0.45454545454545453, precision = 1.0)
 
 julia> recall_precision(bingenome, bin; assembly=false)
-(0.4, 1.0)
+(recall = 0.4, precision = 1.0)
 
 julia> recall_precision(bingenome.parent, bin; assembly=false)
-(0.4, 1.0)
+(recall = 0.4, precision = 1.0)
 ```
 """
 function recall_precision(genome::Genome, bin::Bin; assembly::Bool=true)
     (tp, fp, fn) = confusion_matrix(genome, bin; assembly=assembly)
     recall = tp / (tp + fn)
     precision = tp / (tp + fp)
-    (recall, precision)
+    (; recall, precision)
 end
 
 function recall_precision(clade::Clade{Genome}, bin::Bin; assembly::Bool=true)
     (; asm_recall, genome_recall, precision) =
         get(bin.clades, clade, (; asm_recall=0.0, genome_recall=0.0, precision=0.0))
-    assembly ? (asm_recall, precision) : (genome_recall, precision)
+    assembly ? (; recall=asm_recall, precision) : (; recall=genome_recall, precision)
 end
 
 function fscore(genome::Genome, bin::Bin, b::Real)
-    recall, precision = recall_precision(genome, bin)
+    (; recall, precision) = recall_precision(genome, bin)
     # Some people say the Fscore is undefined in this case.
     # We define it to be 0.0
     if iszero(recall + precision)

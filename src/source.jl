@@ -60,7 +60,7 @@ function finish!(source::Source)
 end
 
 # v: Vector of X, where by(X) isa UnitRange
-function assembly_size(v::Vector, by=identity)
+function assembly_size(v::Vector, by=identity)::Integer
     size = 0
     rightmost_end = 0
     for i in sort!(v; by=i -> first(by(i)), alg=QuickSort)

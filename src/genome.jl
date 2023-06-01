@@ -101,7 +101,7 @@ false
 """
 is_plasmid(g::Genome) = Flags.plasmid ∈ flags(g)
 
-function add_child!(c::Clade{Genome}, g::Node)
+function add_child!(c::Clade{Genome}, g::Node)::Clade
     children = c.children
     if g isa Genome
         push!(children::Vector{Genome}, g)
@@ -185,7 +185,7 @@ end
 
 Compute the most recent common ancestor (MRCA) of `a` and `b`.
 """
-function mrca(a::Node, b::Node)
+function mrca(a::Node, b::Node)::Node
     a === b && return a
     ca = a isa Genome ? a.parent : a
     cb = b isa Genome ? b.parent : b

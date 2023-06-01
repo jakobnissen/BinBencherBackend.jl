@@ -140,7 +140,7 @@ function subset!(
     ref::Reference;
     sequences::Function=Returns(true),
     genomes::Function=Returns(true),
-)
+)::Reference
     ref = uninit!(ref)
     genomes_to_remove = Genome[]
     sources_to_remove = Set{Source}()
@@ -220,7 +220,19 @@ function parse_bins(
     io::IO,
     ref::Reference,
     binsplit_sep::Union{Nothing, AbstractString, Char}=nothing,
-)
+)::Vector{Bin}
+    [
+        Bin(binname, seqs, ref.targets_by_name) for
+        (binname, seqs) in parse_bins(io, Dict, ref, binsplit_sep)
+    ]
+end
+
+function parse_bins(
+    io::IO,
+    ::Type{Dict},
+    ref::Reference,
+    binsplit_sep::Union{Nothing, AbstractString, Char}=nothing,
+)::Dict{<:AbstractString, Vector{Sequence}}
     itr = tab_pairs(eachline(io))
     if binsplit_sep !== nothing
         itr = binsplit_tab_pairs(itr, binsplit_sep)
@@ -230,7 +242,7 @@ function parse_bins(
         (seq, _) = ref.targets_by_name[seqname]
         push!(get!(valtype(seqs_by_binname), seqs_by_binname, binname), seq)
     end
-    [Bin(binname, seqs, ref.targets_by_name) for (binname, seqs) in seqs_by_binname]
+    seqs_by_binname
 end
 
 const JSON_VERSION = 1

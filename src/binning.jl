@@ -247,7 +247,7 @@ function check_disjoint(bins)
     nothing
 end
 
-function validate_recall_precision(xs)
+function validate_recall_precision(xs)::Vector{Float64}
     s = Set{Float64}()
     for x_ in xs
         x = Float64(x_)
@@ -266,7 +266,7 @@ function benchmark(
     bins::Vector{Bin},
     recalls::Vector{Float64},
     precisions::Vector{Float64},
-)
+)::NTuple{2, Vector{<:Matrix{<:Integer}}}
     # For each genome/clade, we compute the maximal recall at the given precision levels.
     # i.e. if 3rd element of vector is 0.5, it means that at precision precisions[3], this genome/clade
     # is found with a maximal recall of 0.5.
