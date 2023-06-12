@@ -166,7 +166,7 @@ function subset!(
     for i in (length(ref.clades) - 1):-1:1
         empty!(ref.clades[i])
         for parent in ref.clades[i + 1]
-            union!(ref.clades[i], parent.children)
+            union!(ref.clades[i], parent.children::Vector{Clade{Genome}})
         end
     end
     for genome in ref.genomes, source in genome.sources
@@ -175,7 +175,7 @@ function subset!(
     finish!(ref)
 end
 
-# TODO: This deepcopy is quite slow, and it would be nice to optimise it.#
+# TODO: This deepcopy is quite slow, and it would be nice to optimise it.
 # However, manual deepcopying of references is quite error prone, and having
 # an incomplete deepcopy could lead to nasty bugs, so I'll just eat it for now.
 """
@@ -252,7 +252,7 @@ struct ReferenceJSON
     genomes::Vector{Tuple{String, Int, Vector{Tuple{String, Int}}}}
     # [Sequence => sequence_length, [(subject, from, to)]]
     sequences::Vector{Tuple{String, Int, Vector{Tuple{String, Int, Int}}}}
-    # [[child => parent] ...]
+    # [[(child, parent)], [(parent, grandparent)] ...]
     taxmaps::Vector{Vector{Tuple{String, Union{String, Nothing}}}}
 end
 StructTypes.StructType(::Type{ReferenceJSON}) = StructTypes.Struct()

@@ -56,12 +56,15 @@ function FlagSet(itr)
 end
 
 function Base.iterate(x::FlagSet, state::UInt64=x.x)
-    iszero(state) ? nothing :
-    (reinterpret(Flag, trailing_zeros(state) % UInt8), state & (state - 1))
+    if iszero(state)
+        nothing
+    else
+        (reinterpret(Flag, trailing_zeros(state) % UInt8), state & (state - 1))
+    end
 end
 
 push(x::FlagSet, y::Flag) = FlagSet(x.x | (UInt64(1) << (reinterpret(UInt8, y) & 63)))
-Base.in(flag::Flag, x::FlagSet) = isodd(x.x >>> reinterpret(UInt8, flag))
+Base.in(flag::Flag, x::FlagSet) = isodd(x.x >>> (reinterpret(UInt8, flag) & UInt8(63)))
 Base.length(x::FlagSet) = count_ones(x.x)
 Base.isempty(x::FlagSet) = iszero(x.x)
 Base.hash(x::FlagSet, h::UInt) = hash(x.x, h ⊻ (0x116133601de11a93 % UInt))

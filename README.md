@@ -8,6 +8,7 @@ This package is used to benchmark and interactively explore the results of metag
 * Launch Julia: `julia`
 * Press `]` to enter package mode. You can exit package mode with backspace.
 * In package mode, type `add https://github.com/jakobnissen/VambBenchmarks.jl` to download and install the benchmarking software
+  - Optionally, you can install a specific commit `def1234` with `add https://github.com/jakobnissen/VambBenchmarks.jl#def1234`
 
 ## Documentation
 Basic usage:

@@ -323,7 +323,7 @@ Genome "OTU_97.9674.1"
   Flags:         1 (organism)
 
 julia> recall_precision(only(intersecting(bin)), bin)
-(0.9614992278566489, 1.0)
+(recall = 0.9614992278566489, precision = 1.0)
 ```
 
 Or do the same for a higher clade - let's say a genus:
@@ -331,5 +331,5 @@ Or do the same for a higher clade - let's say a genus:
 julia> genus = only(Iterators.filter(i -> i.rank == 2, intersecting(Clade, bin)));
 
 julia> recall_precision(genus, bin)
-(0.9614992278566489, 1.0)
+(recall = 0.9614992278566489, precision = 1.0)
 ```

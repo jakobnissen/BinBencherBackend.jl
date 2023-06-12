@@ -6,14 +6,14 @@ a set of `Sequence` with a name attached.
 Practically, every `Bin` is benchmarked against all `Genome`s and `Clade`s of a given `Reference`,
 so each `Bin` stores data about its intersection with every genome/clade, e.g. its purity and recall.
 
-Like `Source`s, `Bin`s also have an _assembly size_ for a given source. This is the number
-of base pairs in the source covered by any sequence in the `Bin`, which is always a subset
-of the `Source`'s assembly size.
+Like `Source`s, `Bin`s also have an _assembly size_ for a given `Genome`. This is the number
+of base pairs in the genomes covered by any sequence in the `Bin`, which is always a subset
+of the genome's assembly size.
 
-Benchmark statistics for a `Bin`/`Genome` can be done with either _assemblies
+Benchmark statistics for a `Bin`/`Genome` can be done with either _assemblies_
 or _genomes_ as the ground truth.
 * True positives (TP) are defined as the sum of assembly sizes over all sources in the genome
-* False positives (FP) are the sum of length of sequences in the bin not mapping to the `Genome`
+* False positives (FP) are the sum of length of sequences in the bin not mapping to the genome
 * False negatives (FN) is either the genome assembly size or genome size minus TP.
 
 For `Bin`/`Clade` pairs B/C, recall is the maximal recall of B/Ch for all children Ch of C.

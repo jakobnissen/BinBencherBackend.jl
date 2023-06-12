@@ -115,7 +115,10 @@ function print_matrix(io::IO, x::Binning; level::Integer=0, assembly::Bool=true)
     m = ms[level + 1]
     rnd(x) = string(round(x; digits=3))
     digitwidth(x) = sizeof(rnd(x))
-    width = max(max(4, ndigits(maximum(m) + 1)), maximum(digitwidth, x.recalls) + 1)
+    width = max(
+        max(4, ndigits(maximum(m; init=0) + 1)),
+        maximum(digitwidth, x.recalls; init=0) + 1,
+    )
     col1_width = max(3, maximum(digitwidth, x.precisions))
     println(io, rpad("P\\R", col1_width), join([lpad(i, width) for i in x.recalls]))
     for (prec_index, prec) in enumerate(x.precisions)
