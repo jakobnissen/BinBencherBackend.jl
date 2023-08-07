@@ -2,7 +2,7 @@ const DEFAULT_RECALLS = (0.6, 0.7, 0.8, 0.9, 0.95, 0.99)
 const DEFAULT_PRECISIONS = (0.6, 0.7, 0.8, 0.9, 0.95, 0.99)
 
 """
-    Binning
+    Binning(::IO, ::Reference; kwargs...)
 
 A `Binning` represents a set of `Bin`s benchmarked against a `Reference`.
 `Binning`s can be created given a set of `Bin`s and a `Reference`, where the

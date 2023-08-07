@@ -1,3 +1,6 @@
+struct Unsafe end
+const unsafe = Unsafe()
+
 function tab_pairs(lines)
     lines |>
     imap(strip) |>

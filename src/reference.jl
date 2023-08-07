@@ -8,7 +8,7 @@
 end
 
 """
-    Reference
+    Reference(::IO; [min_seq_length=1])
 
 A `Reference` contains the ground truth to benchmark against.
 Conceptually, it consists of the following parts:
@@ -20,10 +20,15 @@ Normally, the types `FlagSet` `Genome`, `Source`, `Clade` and `Sequence` do not
 need to be constructed manually, but are constructed when the `Reference` is loaded
 from a JSON file.
 
-Construct a `Reference` with `open(i -> Reference(i), "path/to/ref.json")`.
-
 # Examples
 ```jldoctest
+julia> ref = open(path_to_ref_file) do io
+           Reference(io; min_seq_length=1)
+       end;
+
+julia> ref isa Reference
+true
+
 julia> length(genomes(ref))
 3
 
@@ -38,7 +43,7 @@ See also: [`subset`](@ref), [`Genome`](@ref), [`Clade`](@ref)
 """
 Reference
 
-function Reference()
+function Reference(::Unsafe)
     Reference(
         Set{Genome}(),
         Dict{String, Tuple{Sequence, Vector{Target}}}(),
@@ -268,7 +273,7 @@ function Reference(json_struct::ReferenceJSON, min_seq_length::Int)
             "but the supported version of the currently loaded version of VambBenchmarks is $(JSON_VERSION)."
         )
     end
-    ref = Reference()
+    ref = Reference(unsafe)
 
     # Parse genomes
     for (genomename, flags, sourcesdict) in json_struct.genomes

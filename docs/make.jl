@@ -6,9 +6,11 @@ meta = quote
 
     (ref, binning, genome, bin) = let
         dir = joinpath(Base.pkgdir(VambBenchmarks), "files")
-        ref = open(i -> Reference(i), joinpath(dir, "ref.json"))
+        path_to_ref_file = joinpath(dir, "ref.json")
+        path_to_bins_file = joinpath(dir, "clusters.tsv")
+        ref = open(i -> Reference(i), path_to_ref_file)
         genome = first(sort!(collect(genomes(ref)); by=i -> i.name))
-        bins = open(i -> Binning(i, ref), joinpath(dir, "clusters.tsv"))
+        bins = open(i -> Binning(i, ref), path_to_bins_file)
         bin = first(bins.bins)
         (ref, bins, genome, bin)
     end
