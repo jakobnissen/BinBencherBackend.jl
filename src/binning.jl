@@ -100,6 +100,47 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
 end
 
 """
+    n_recovered(::Binning, recall, precision; level=0, assembly=false)::Integer
+
+Return the number of genomes or clades reconstructed in the `Binning` at the given recall and precision levels.
+If `assembly` is set, return the number of assemblies reconstructed instead.
+The argument `level` sets the taxonomic rank: 0 for `Genome` (or assemblies).
+
+# Examples
+```jldoctest
+julia> n_recovered(binning, 0.4, 0.71)
+1
+
+julia> n_recovered(binning, 0.4, 0.71; assembly=true)
+2
+
+julia> n_recovered(binning, 0.4, 0.71; assembly=true, level=2)
+1
+```
+"""
+function n_recovered(
+    binning::Binning,
+    recall::Real,
+    precision::Real;
+    level::Integer=0,
+    assembly::Bool=false,
+)::Integer
+    ri = searchsortedfirst(binning.recalls, recall)
+    ri > length(binning.recalls) && error("Binning did not benchmark at that high recall")
+    pi = searchsortedfirst(binning.precisions, precision)
+    pi > length(binning.precisions) &&
+        error("Binning did not benchmark at that high precision")
+    matrices = assembly ? binning.recovered_asms : binning.recovered_genomes
+    if level + 1 ∉ eachindex(matrices)
+        error(
+            lazy"Requested bins at taxonomic level $level but have only level 0:$(lastindex(matrices)-1)",
+        )
+    end
+    m = matrices[level + 1]
+    m[pi, ri]
+end
+
+"""
     print_matrix(::Binning; level=0, assembly=true)
 
 Print the number of reconstructed assemblies or genomes at the given taxonomic level (rank).

@@ -138,6 +138,10 @@ end
     @test bins isa Binning
     @test nbins(bins) == 6
 
+    @test n_recovered(bins, 0.4, 0.71) == 1
+    @test n_recovered(bins, 0.4, 0.71; assembly=true) == 2
+    @test n_recovered(bins, 0.4, 0.71; assembly=true, level=2) == 1
+
     allgenomes = collect(genomes(ref))
     for (ir, recall) in enumerate(bins.recalls)
         for (ip, precision) in enumerate(bins.precisions)
