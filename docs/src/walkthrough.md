@@ -269,6 +269,17 @@ P\R   0.6  0.7  0.8  0.9 0.95 0.99
 0.99   46   37   25    9    1    0
 ```
 
+You can also get the number of genomes or assemblies reconstructed at a given
+precision/recall level directly with `n_recovered`:
+
+```jldoctest walk
+julia> n_recovered(binning, 0.75, 0.9; assembly=true)
+55
+
+julia> n_recovered(binning, 0.66, 0.91; level=1)
+44
+```
+
 ## Bins
 The `Binning` object obviously contains our bins.
 Let's pick a particularly good bin:

@@ -35,6 +35,9 @@ ifilter(f) = x -> Iterators.filter(f, x)
             Binning(io, ref)
         end
         print_matrix(IOBuffer(), bins)
+        n_recovered(bins, 0.4, 0.2)
+        n_recovered(bins, 0.4, 0.2; assembly=true)
+        n_recovered(bins, 0.4, 0.2; level=1)
     end
 end
 
@@ -58,6 +61,7 @@ export Sequence,
     is_plasmid,
     top_clade,
     gold_standard,
+    n_recovered,
     subset,
     subset!,
     f1,
