@@ -37,7 +37,8 @@ open(file) do io
         binsplit_separator::Union{AbstractString, Char, Nothing}=nothing,
         disjoint::Bool=true,
         recalls=DEFAULT_RECALLS,
-        precisions=DEFAULT_PRECISIONS
+        precisions=DEFAULT_PRECISIONS,
+        filter_genomes=Returns(true)
 )
 ```
 
@@ -47,6 +48,8 @@ open(file) do io
   (`nothing` means no binsplitting)
 * `disjoint`: Throw an error if the same sequence is seen in multiple bins
 * `recalls` and `precision`: The thresholds to benchmark with
+* `filter_genomes`: A function `f(genome)::Bool`. Genomes for which it returns
+   `false` are ignored in benchmarking.
 """
 struct Binning
     ref::Reference
@@ -190,12 +193,13 @@ function Binning(
     disjoint::Bool=true,
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS,
+    filter_genomes::Function=Returns(true),
 )
     bins = sort!(parse_bins(io, ref, binsplit_separator); by=i -> i.name)
     filter!(bins) do bin
         nseqs(bin) >= min_seqs && bin.breadth >= min_size
     end
-    Binning(bins, ref; recalls=recalls, precisions=precisions, disjoint)
+    Binning(bins, ref; recalls, precisions, disjoint, filter_genomes)
 end
 
 function Binning(
@@ -204,13 +208,20 @@ function Binning(
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS,
     disjoint::Bool=true,
+    filter_genomes::Function=Returns(true),
 )
+    considered_genomes = if filter_genomes === Returns(true)
+        nothing
+    else
+        Set(g for g in genomes(ref) if filter_genomes(g))
+    end
     checked_recalls = validate_recall_precision(recalls)
     checked_precisions = validate_recall_precision(precisions)
     bins = vector(bins_)
     disjoint && check_disjoint(bins)
     recoverable_genomes = zeros(Float64, length(checked_recalls))
     for genome in ref.genomes
+        !isnothing(considered_genomes) && genome ∉ considered_genomes && continue
         i = searchsortedlast(checked_recalls, genome.assembly_size / genome.genome_size)
         iszero(i) && continue
         recoverable_genomes[i] += 1
@@ -220,7 +231,7 @@ function Binning(
         recoverable_genomes[i] += recoverable_genomes[i + 1]
     end
     (asm_matrices, genome_matrices) =
-        benchmark(ref, bins, checked_recalls, checked_precisions)
+        benchmark(ref, bins, checked_recalls, checked_precisions; considered_genomes)
     Binning(
         ref,
         bins,
@@ -309,7 +320,8 @@ function benchmark(
     ref::Reference,
     bins::Vector{Bin},
     recalls::Vector{Float64},
-    precisions::Vector{Float64},
+    precisions::Vector{Float64};
+    considered_genomes::Union{Nothing, Set{Genome}}, # if nothing, consider all genomes
 )::NTuple{2, Vector{<:Matrix{<:Integer}}}
     # For each genome/clade, we compute the maximal recall at the given precision levels.
     # i.e. if 3rd element of vector is 0.5, it means that at precision precisions[3], this genome/clade
@@ -320,6 +332,7 @@ function benchmark(
         Dict{Clade{Genome}, Tuple{Vector{Float64}, Vector{Float64}}}()
     # Initialize with zeros for all known genomes/clades
     for genome in ref.genomes
+        !isnothing(considered_genomes) && genome ∉ considered_genomes && continue
         max_genome_recall_at_precision[genome] =
             (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
     end
@@ -329,6 +342,7 @@ function benchmark(
     end
     for bin in bins
         for (genome, (asmsize, foreign)) in bin.genomes
+            !isnothing(considered_genomes) && genome ∉ considered_genomes && continue
             (v_asm, v_genome) = max_genome_recall_at_precision[genome]
             precision = (asmsize) / (asmsize + foreign)
             asm_recall = asmsize / genome.assembly_size

@@ -3,6 +3,7 @@ using VambBenchmarks
 
 const DIR = joinpath(dirname(dirname(pathof(VambBenchmarks))), "files")
 REFSTR = read(joinpath(DIR, "ref.json"), String)
+CLUSTERS_STR = read(joinpath(DIR, "clusters.tsv"), String)
 
 @assert isdir(DIR)
 ngenomes(ref) = length(genomes(ref))
@@ -41,7 +42,7 @@ end
 
 @testset "Construction" begin
     global ref = Reference(IOBuffer(REFSTR))
-    global binning = open(i -> Binning(i, ref), joinpath(DIR, "clusters.tsv"))
+    global binning = Binning(IOBuffer(CLUSTERS_STR), ref)
     global bins = sort!(collect(binning.bins); by=i -> i.name)
 
     @test ref isa Reference
@@ -133,7 +134,7 @@ end
 
 @testset "Binning" begin
     ref = Reference(IOBuffer(REFSTR))
-    bins = open(i -> Binning(i, ref), joinpath(DIR, "clusters.tsv"))
+    bins = Binning(IOBuffer(CLUSTERS_STR), ref)
 
     @test bins isa Binning
     @test nbins(bins) == 6
@@ -165,6 +166,16 @@ end
             end
         end
     end
+
+    # Test filter_genomes works
+    empty_binning = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes=Returns(false))
+    @test n_recovered(empty_binning, 0.1, 0.1) == 0
+    @test iszero(maximum(empty_binning.recoverable_genomes))
+
+    only_virus = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes=is_virus)
+    @test VambBenchmarks.n_nc(only_virus) == 0
+    @test n_recovered(only_virus, 0.1, 0.1; assembly=true) == 1
+    @test iszero(maximum(only_virus.recoverable_genomes))
 end
 
 @testset "Gold standard" begin
