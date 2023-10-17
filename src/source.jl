@@ -38,13 +38,13 @@ Base.:(==)(s1::Source, s2::Source) = s1.name == s2.name
 Base.hash(x::Source, h::UInt) = hash(x.name, h ⊻ UInt(344509130945))
 
 function add_sequence!(source::Source, seq::Sequence, span::UnitRange{Int})
-    @assert !isempty(span)
-    if !issubset(span, 1:(source.length))
-        error(
-            lazy"Attempted to add sequence \"$(seq.name)\" to source \"$(source.name)\" ",
-            lazy"at span $(span), but valid source indices are 1:$(source.length)",
-        )
-    end
+    isempty(span) && error(
+        lazy"Sequence \"$(seq.name)\" spans $(first(span))-$(last(span)), must span at least 1 base.",
+    )
+    issubset(span, 1:(source.length)) || error(
+        lazy"Attempted to add sequence \"$(seq.name)\" to source \"$(source.name)\" ",
+        lazy"at span $(span), but valid source indices are 1:$(source.length)",
+    )
     @isinit(source.assembly_size) &&
         error("Can't add sequence to source after calling finish! on it.")
     push!(source.sequences, (seq, span))

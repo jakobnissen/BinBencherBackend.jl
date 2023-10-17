@@ -302,11 +302,6 @@ function Reference(json_struct::ReferenceJSON, min_seq_length::Int)
     for (seq_name, seq_length, targs) in json_struct.sequences
         seq_length ≥ min_seq_length || continue
         targets = map(targs) do (source_name, from, to)
-            if to < from
-                error(
-                    lazy"Sequence \"$(seq_name)\" spans $(from)-$(to), must span at least 1 base.",
-                )
-            end
             source = get(source_by_name, source_name, nothing)
             if source === nothing
                 error(
