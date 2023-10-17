@@ -3,4 +3,4 @@ Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 VambBenchmarks = "63a9268e-b9e5-4a07-aba6-1f52d4878f75"
 
 [compat]
-Documenter = "0.27"
+Documenter = "1"
