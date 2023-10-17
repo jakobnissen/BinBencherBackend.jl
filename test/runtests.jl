@@ -2,8 +2,10 @@ using Test
 using VambBenchmarks
 
 const DIR = joinpath(dirname(dirname(pathof(VambBenchmarks))), "files")
-REFSTR = read(joinpath(DIR, "ref.json"), String)
-CLUSTERS_STR = read(joinpath(DIR, "clusters.tsv"), String)
+REF_PATH = joinpath(DIR, "ref.json")
+REF_STR = read(REF_PATH, String)
+CLUSTERS_PATH = joinpath(DIR, "clusters.tsv")
+CLUSTERS_STR = read(CLUSTERS_PATH, String)
 
 @assert isdir(DIR)
 ngenomes(ref) = length(genomes(ref))
@@ -41,13 +43,20 @@ ngenomes(ref) = length(genomes(ref))
 end
 
 @testset "Construction" begin
-    global ref = Reference(IOBuffer(REFSTR))
+    global ref = Reference(IOBuffer(REF_STR))
     global binning = Binning(IOBuffer(CLUSTERS_STR), ref)
     global bins = sort!(collect(binning.bins); by=i -> i.name)
 
     @test ref isa Reference
     @test binning isa Binning
     @test bins isa Vector{Bin}
+end
+
+function test_is_same_reference(a::Reference, b::Reference)
+    @test genomes(a) == genomes(b)
+    @test a.targets_by_name == b.targets_by_name
+    @test nseqs(a) == nseqs(b)
+    @test [[c.name for c in v] for v in a.clades] == [[c.name for c in v] for v in b.clades]
 end
 
 @testset "Reference" begin
@@ -58,10 +67,9 @@ end
     VambBenchmarks.save(buf, ref)
     ref2 = Reference(IOBuffer(take!(buf)))
 
-    @test genomes(ref) == genomes(ref2)
-    @test ref.targets_by_name == ref2.targets_by_name
-    cladenames(ref) = [[c.name for c in v] for v in ref.clades]
-    @test cladenames(ref) == cladenames(ref2)
+    test_is_same_reference(ref, ref2)
+    ref3 = Reference(REF_PATH)
+    test_is_same_reference(ref, ref3)
 end
 
 @testset "Sequence" begin
@@ -110,7 +118,7 @@ end
 @testset "Subsetting" begin
     seq_pred = s -> length(s) ≥ 25
     genome_pred = !is_virus
-    ref = Reference(IOBuffer(REFSTR))
+    ref = Reference(IOBuffer(REF_STR))
     ref2 = subset(ref; sequences=seq_pred)
     ref3 = subset(ref; genomes=genome_pred)
     ref4 = subset(ref3; sequences=seq_pred)
@@ -132,8 +140,16 @@ end
     )
 end
 
+function test_is_same_binning(a::Binning, b::Binning)
+    @test a.ref === b.ref
+    @test [i.name for i in a.bins] == [i.name for i in b.bins]
+    for field in [:recovered_asms, :recovered_genomes, :recoverable_genomes, :recalls, :precisions]
+        @test getfield(a, field) == getfield(b, field)
+    end
+end
+
 @testset "Binning" begin
-    ref = Reference(IOBuffer(REFSTR))
+    ref = Reference(IOBuffer(REF_STR))
     bins = Binning(IOBuffer(CLUSTERS_STR), ref)
 
     @test bins isa Binning
@@ -176,10 +192,13 @@ end
     @test VambBenchmarks.n_nc(only_virus) == 0
     @test n_recovered(only_virus, 0.1, 0.1; assembly=true) == 1
     @test iszero(maximum(only_virus.recoverable_genomes))
+
+    bins2 = Binning(CLUSTERS_PATH, ref)
+    test_is_same_binning(bins, bins2)
 end
 
 @testset "Gold standard" begin
-    ref = Reference(IOBuffer(REFSTR))
+    ref = Reference(IOBuffer(REF_STR))
     gold_standards = [
         gold_standard(ref; disjoint=true)
         gold_standard(ref; disjoint=false)

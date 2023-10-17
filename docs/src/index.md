@@ -10,8 +10,8 @@ VambBenchmarks.jl is a package for efficient benchmarking and interactive explor
 ## Quickstart
 ```julia
 using VambBenchmarks
-ref =  open(i -> Reference(i), "files/ref.json")
-bins = open(i -> Binning(i, ref), "files/clusters.tsv")
+ref =  Reference("files/ref.json")
+bins = Binning("files/clusters.tsv", ref)
 print_matrix(bins)
 ```
 
