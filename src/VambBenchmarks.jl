@@ -1,6 +1,7 @@
 module VambBenchmarks
 
 using AbstractTrees: AbstractTrees
+using CodecZlib: GzipDecompressorStream
 using JSON3: JSON3
 using StructTypes: StructTypes
 using LazilyInitializedFields: @lazy, @isinit, @init!, @uninit!, uninit

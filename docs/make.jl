@@ -4,7 +4,7 @@ using VambBenchmarks
 meta = quote
     using VambBenchmarks
 
-    (path_to_ref_file, ref, binning, genome, bin) = let
+    (path_to_ref_file, path_to_bins_file, ref, binning, genome, bin) = let
         dir = joinpath(Base.pkgdir(VambBenchmarks), "files")
         path_to_ref_file = joinpath(dir, "ref.json")
         path_to_bins_file = joinpath(dir, "clusters.tsv")
@@ -12,7 +12,7 @@ meta = quote
         genome = first(sort!(collect(genomes(ref)); by=i -> i.name))
         bins = open(i -> Binning(i, ref), path_to_bins_file)
         bin = first(bins.bins)
-        (path_to_ref_file, ref, bins, genome, bin)
+        (path_to_ref_file, path_to_bins_file, ref, bins, genome, bin)
     end
 end
 

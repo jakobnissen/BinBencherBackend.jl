@@ -27,3 +27,11 @@ function binsplit_tab_pairs(t_pairs, sep::Union{Char, AbstractString})
         (new_binname, seqname)
     end
 end
+
+function open_perhaps_gzipped(f::Function, path::String)
+    if endswith(path, ".gz")
+        open(f, GzipDecompressorStream, path)
+    else
+        open(f, path)
+    end
+end

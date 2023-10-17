@@ -2,7 +2,7 @@ const DEFAULT_RECALLS = (0.6, 0.7, 0.8, 0.9, 0.95, 0.99)
 const DEFAULT_PRECISIONS = (0.6, 0.7, 0.8, 0.9, 0.95, 0.99)
 
 """
-    Binning(::IO, ::Reference; kwargs...)
+    Binning(::Union{IO, AbstractString}, ::Reference; kwargs...)
 
 A `Binning` represents a set of `Bin`s benchmarked against a `Reference`.
 `Binning`s can be created given a set of `Bin`s and a `Reference`, where the
@@ -16,7 +16,7 @@ See also: [`print_matrix`](@ref), [`Bin`](@ref), [`Reference`](@ref)
 
 # Examples
 ```jldoctest
-julia> bins = gold_standard(ref);
+julia> bins = Binning(path_to_bins_file, ref);
 
 julia> bins isa Binning
 true
@@ -30,7 +30,7 @@ Create with:
 ```julia
 open(file) do io
     Binning(
-        io::IO,
+        io::Union{IO, AbstractString},
         ref::Reference;
         min_size::Integer=1,
         min_seqs::Integer=1,
@@ -183,6 +183,10 @@ function n_nc(x::Binning)::Union{Int, Nothing}
 end
 
 nbins(x::Binning) = length(x.bins)
+
+function Binning(path::AbstractString, ref::Reference; kwargs...)
+    open_perhaps_gzipped(io -> Binning(io, ref; kwargs...), String(path))
+end
 
 function Binning(
     io::IO,

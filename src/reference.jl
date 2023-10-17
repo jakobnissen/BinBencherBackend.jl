@@ -8,7 +8,7 @@
 end
 
 """
-    Reference(::IO; [min_seq_length=1])
+    Reference(::Union{IO, AbstractString}; [min_seq_length=1])
 
 A `Reference` contains the ground truth to benchmark against.
 Conceptually, it consists of the following parts:
@@ -22,9 +22,7 @@ from a JSON file.
 
 # Examples
 ```jldoctest
-julia> ref = open(path_to_ref_file) do io
-           Reference(io; min_seq_length=1)
-       end;
+julia> ref = Reference(path_to_ref_file; min_seq_length=3);
 
 julia> ref isa Reference
 true
@@ -261,6 +259,10 @@ struct ReferenceJSON
     taxmaps::Vector{Vector{Tuple{String, Union{String, Nothing}}}}
 end
 StructTypes.StructType(::Type{ReferenceJSON}) = StructTypes.Struct()
+
+function Reference(path::AbstractString; min_seq_length::Integer=1)
+    open_perhaps_gzipped(i -> Reference(i; min_seq_length), String(path))
+end
 
 function Reference(io::IO; min_seq_length::Integer=1)
     Reference(JSON3.read(io, ReferenceJSON), Int(min_seq_length))
