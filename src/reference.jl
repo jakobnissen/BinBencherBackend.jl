@@ -287,7 +287,8 @@ const JSON_VERSION = 2
 # [(name, flags, [(sourcename, length)])]
 const GENOMES_JSON_T = Vector{Tuple{String, Int, Vector{Tuple{String, Int}}}}
 # [Sequence => sequence_length, [(subject, from, to)]]
-const SEQUENCES_JSON_T = Vector{Tuple{String, Int, Vector{Tuple{String, Int, Int}}}}                   # [[(child, parent)], [(parent, grandparent)] ...]
+const SEQUENCES_JSON_T = Vector{Tuple{String, Int, Vector{Tuple{String, Int, Int}}}}
+# [[(child, parent)], [(parent, grandparent)] ...]
 const TAXMAPS_JSON_T = Vector{Vector{Tuple{String, String}}}
 
 struct ReferenceJSON
@@ -298,13 +299,9 @@ struct ReferenceJSON
 end
 StructTypes.StructType(::Type{ReferenceJSON}) = StructTypes.Struct()
 
-function Reference(path::AbstractString)
-    open_perhaps_gzipped(i -> Reference(i), String(path))
-end
+Reference(path::AbstractString) = open_perhaps_gzipped(i -> Reference(i), String(path))
 
-function Reference(io::IO)
-    Reference(JSON3.read(io, ReferenceJSON))
-end
+Reference(io::IO) = Reference(JSON3.read(io, ReferenceJSON))
 
 function Reference(json_struct::ReferenceJSON)
     if json_struct.version != JSON_VERSION
@@ -398,8 +395,7 @@ end
 
 # Invariants for the input list:
 # The input is a vector of ranks, consisting of (child, parent) names
-# On every rank, the children is a unique set (each child present once)
-# of the parent of the previous rank:
+# On every rank, the children is a unique set (each child present once) of the parent of the previous rank:
 #   - On the first rank, the children is a unique set of genome names
 #   - On the last rank, the parent names can be arbitrary.
 #     If there is more than a single unique name, then a top node will be added
