@@ -12,6 +12,10 @@ at given recall levels given perfect binning.
 The fields `recovered_asms` and `recovered_genomes` are used for benchmarking,
 these are normally output using the `print_matrix` function.
 
+A `Binning` is loaded from a tsv file, which is specified either as an `IO`,
+or its path as an `AbstractString`. If the path ends with `.gz`, automatically
+gzip decompress when reading the file.
+
 See also: [`print_matrix`](@ref), [`Bin`](@ref), [`Reference`](@ref)
 
 # Examples

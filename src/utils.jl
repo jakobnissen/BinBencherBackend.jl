@@ -30,8 +30,13 @@ end
 
 function open_perhaps_gzipped(f::Function, path::String)
     if endswith(path, ".gz")
-        open(f, GzipDecompressorStream, path)
+        stream = GzipDecompressorStream(open(path; lock=false))
+        try
+            f(stream)
+        finally
+            close(stream)
+        end
     else
-        open(f, path)
+        open(f, path; lock=false)
     end
 end
