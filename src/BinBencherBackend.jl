@@ -28,7 +28,7 @@ ifilter(f) = x -> Iterators.filter(f, x)
 
     @compile_workload begin
         ref = open(refpath) do io
-            Reference(io; min_seq_length=10)
+            Reference(io)
         end
         subset!(ref; sequences=Returns(true), genomes=Returns(true))
         gold_standard(ref)
