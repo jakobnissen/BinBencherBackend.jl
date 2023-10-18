@@ -20,6 +20,10 @@ Normally, the types `FlagSet` `Genome`, `Source`, `Clade` and `Sequence` do not
 need to be constructed manually, but are constructed when the `Reference` is loaded
 from a JSON file.
 
+A `Reference` is loaded from a JSON file, which is specified either as an `IO`,
+or its path as an `AbstractString`. If the path ends with `.gz`, automatically
+gzip decompress when reading the file.
+
 # Examples
 ```jldoctest
 julia> ref = Reference(path_to_ref_file; min_seq_length=3);

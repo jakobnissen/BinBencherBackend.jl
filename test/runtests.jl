@@ -1,5 +1,6 @@
 using Test
 using VambBenchmarks
+using CodecZlib: GzipCompressor
 
 const DIR = joinpath(dirname(dirname(pathof(VambBenchmarks))), "files")
 REF_PATH = joinpath(DIR, "ref.json")
@@ -143,7 +144,8 @@ end
 function test_is_same_binning(a::Binning, b::Binning)
     @test a.ref === b.ref
     @test [i.name for i in a.bins] == [i.name for i in b.bins]
-    for field in [:recovered_asms, :recovered_genomes, :recoverable_genomes, :recalls, :precisions]
+    for field in
+        [:recovered_asms, :recovered_genomes, :recoverable_genomes, :recalls, :precisions]
         @test getfield(a, field) == getfield(b, field)
     end
 end
@@ -209,4 +211,20 @@ end
     end
     non_disjoint = last(gold_standards)
     @test non_disjoint.recoverable_genomes == non_disjoint.recovered_genomes[1][1, :]
+end
+
+@testset "From gzipped" begin
+    mktempdir() do path
+        ref_path = joinpath(path, "ref.json.gz")
+        open(io -> write(io, transcode(GzipCompressor, REF_STR)), ref_path, "w")
+        ref1 = Reference(REF_PATH)
+        ref2 = Reference(ref_path)
+        test_is_same_reference(ref1, ref2)
+
+        bins_path = joinpath(path, "bins.tsv.gz")
+        open(io -> write(io, transcode(GzipCompressor, CLUSTERS_STR)), bins_path, "w")
+        bins1 = Binning(CLUSTERS_PATH, ref1)
+        bins2 = Binning(bins_path, ref1)
+        test_is_same_binning(bins1, bins2)
+    end
 end
