@@ -9,7 +9,7 @@
 end
 
 """
-    Reference(::Union{IO, AbstractString}; [min_seq_length=1])
+    Reference(::Union{IO, AbstractString})
 
 A `Reference` contains the ground truth to benchmark against.
 Conceptually, it consists of the following parts:
@@ -27,7 +27,7 @@ gzip decompress when reading the file.
 
 # Examples
 ```jldoctest
-julia> ref = Reference(path_to_ref_file; min_seq_length=3);
+julia> ref = Reference(path_to_ref_file);
 
 julia> ref isa Reference
 true
@@ -298,15 +298,15 @@ struct ReferenceJSON
 end
 StructTypes.StructType(::Type{ReferenceJSON}) = StructTypes.Struct()
 
-function Reference(path::AbstractString; min_seq_length::Integer=1)
-    open_perhaps_gzipped(i -> Reference(i; min_seq_length), String(path))
+function Reference(path::AbstractString)
+    open_perhaps_gzipped(i -> Reference(i), String(path))
 end
 
-function Reference(io::IO; min_seq_length::Integer=1)
-    Reference(JSON3.read(io, ReferenceJSON), Int(min_seq_length))
+function Reference(io::IO)
+    Reference(JSON3.read(io, ReferenceJSON))
 end
 
-function Reference(json_struct::ReferenceJSON, min_seq_length::Int)
+function Reference(json_struct::ReferenceJSON)
     if json_struct.version != JSON_VERSION
         @warn (
             "Deserializing reference JSON of version $(json_struct.version), " *
@@ -338,7 +338,6 @@ function Reference(json_struct::ReferenceJSON, min_seq_length::Int)
 
     # Parse sequences
     for (seq_name, seq_length, targs) in json_struct.sequences
-        seq_length ≥ min_seq_length || continue
         targets = map(targs) do (source_name, from, to)
             source = get(source_by_name, source_name, nothing)
             if source === nothing
