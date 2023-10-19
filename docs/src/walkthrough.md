@@ -197,7 +197,7 @@ Binning
 
 A wealth of information is readily available:
 * `binning.ref` gives the underlying `Reference`
-* `binning.recalls` and `binning.precision` gives the recall/precision thresholds used in benchmarking
+* `binning.recalls` and `binning.precisions` gives the recall/precision thresholds used in benchmarking
 * You can get the number of genomes that are assembled at the various recall levels with `recoverable_genomes`:
   This sets an upper limit of how many genomes can be reconstructed given a hypothetical perfect binning
 
