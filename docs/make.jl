@@ -1,11 +1,11 @@
 using Documenter
-using VambBenchmarks
+using BinBencherBackend
 
 meta = quote
-    using VambBenchmarks
+    using BinBencherBackend
 
     (path_to_ref_file, path_to_bins_file, ref, binning, genome, bin) = let
-        dir = joinpath(Base.pkgdir(VambBenchmarks), "files")
+        dir = joinpath(Base.pkgdir(BinBencherBackend), "files")
         path_to_ref_file = joinpath(dir, "ref.json")
         path_to_bins_file = joinpath(dir, "clusters.tsv")
         ref = open(i -> Reference(i), path_to_ref_file)
@@ -16,11 +16,11 @@ meta = quote
     end
 end
 
-DocMeta.setdocmeta!(VambBenchmarks, :DocTestSetup, meta; recursive=true)
+DocMeta.setdocmeta!(BinBencherBackend, :DocTestSetup, meta; recursive=true)
 
 makedocs(;
-    sitename="VambBenchmarks.jl",
-    modules=[VambBenchmarks],
+    sitename="BinBencherBackend.jl",
+    modules=[BinBencherBackend],
     pages=[
         "Home" => "index.md",
         "Walkthrough" => "walkthrough.md",
@@ -29,4 +29,4 @@ makedocs(;
     checkdocs=:all,
 )
 
-deploydocs(; repo="github.com/jakobnissen/VambBenchmarks.jl.git", push_preview=true)
+deploydocs(; repo="github.com/jakobnissen/BinBencherBackend.jl.git", push_preview=true)

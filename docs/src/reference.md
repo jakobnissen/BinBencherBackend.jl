@@ -1,5 +1,5 @@
 # Reference
 ```@autodocs
-Modules = [VambBenchmarks]
+Modules = [BinBencherBackend]
 Order   = [:type, :function]
 ```

@@ -1,4 +1,4 @@
-module VambBenchmarks
+module BinBencherBackend
 
 using AbstractTrees: AbstractTrees
 using CodecZlib: GzipDecompressorStream
@@ -22,7 +22,7 @@ imap(f) = x -> Iterators.map(f, x)
 ifilter(f) = x -> Iterators.filter(f, x)
 
 @setup_workload begin
-    dir = joinpath(dirname(dirname(pathof(VambBenchmarks))), "files")
+    dir = joinpath(dirname(dirname(pathof(BinBencherBackend))), "files")
     refpath = joinpath(dir, "ref.json")
     binpath = joinpath(dir, "clusters.tsv")
 

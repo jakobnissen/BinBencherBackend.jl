@@ -33,7 +33,7 @@ julia> gA, gB, gC = collect(ref.genomes);
 
 julia> flags(gA)
 FlagSet with 1 element:
-  VambBenchmarks.Flags.organism
+  BinBencherBackend.Flags.organism
 
 julia> mrca(gA, gB)
 Species "D", 2 genomes
@@ -57,7 +57,7 @@ See also: [`Flag`](@ref), [`FlagSet`](@ref)
 ```jldoctest
 julia> flags(genome)
 FlagSet with 1 element:
-  VambBenchmarks.Flags.organism
+  BinBencherBackend.Flags.organism
 ```
 """
 flags(g::Genome) = g.flags

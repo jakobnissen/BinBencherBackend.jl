@@ -1,8 +1,8 @@
 using Test
-using VambBenchmarks
+using BinBencherBackend
 using CodecZlib: GzipCompressor
 
-const DIR = joinpath(dirname(dirname(pathof(VambBenchmarks))), "files")
+const DIR = joinpath(dirname(dirname(pathof(BinBencherBackend))), "files")
 REF_PATH = joinpath(DIR, "ref.json")
 REF_STR = read(REF_PATH, String)
 CLUSTERS_PATH = joinpath(DIR, "clusters.tsv")
@@ -70,7 +70,7 @@ end
     @test nseqs(ref) == 11
 
     buf = IOBuffer()
-    VambBenchmarks.save(buf, ref)
+    BinBencherBackend.save(buf, ref)
     ref2 = Reference(IOBuffer(take!(buf)))
 
     test_is_same_reference(ref, ref2)
@@ -196,7 +196,7 @@ end
     @test iszero(maximum(empty_binning.recoverable_genomes))
 
     only_virus = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes=is_virus)
-    @test VambBenchmarks.n_nc(only_virus) == 0
+    @test BinBencherBackend.n_nc(only_virus) == 0
     @test n_recovered(only_virus, 0.1, 0.1; assembly=true) == 1
     @test iszero(maximum(only_virus.recoverable_genomes))
 

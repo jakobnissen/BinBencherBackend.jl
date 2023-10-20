@@ -1,15 +1,15 @@
-# VambBenchmarks
-VambBenchmarks.jl is a package for efficient benchmarking and interactive exploration of a set of bins against a reference.
+# BinBencherBackend
+BinBencherBackend.jl is a package for efficient benchmarking and interactive exploration of a set of bins against a reference.
 
 ## Installation
 * Install Julia - preferably using `juliaup`: https://github.com/JuliaLang/juliaup
 * Launch Julia: `julia`
 * Press `]` to enter package mode. You can exit package mode with backspace.
-* In package mode, type `add https://github.com/jakobnissen/VambBenchmarks.jl` to download and install the benchmarking software
+* In package mode, type `add https://github.com/jakobnissen/BinBencherBackend.jl` to download and install the benchmarking software
 
 ## Quickstart
 ```julia
-using VambBenchmarks
+using BinBencherBackend
 ref =  Reference("files/ref.json")
 bins = Binning("files/clusters.tsv", ref)
 print_matrix(bins)

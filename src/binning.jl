@@ -25,7 +25,7 @@ julia> bins = Binning(path_to_bins_file, ref);
 julia> bins isa Binning
 true
 
-julia> VambBenchmarks.n_nc(binning)
+julia> BinBencherBackend.n_nc(binning)
 0
 ```
 

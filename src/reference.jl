@@ -134,7 +134,7 @@ Reference
   Seq length: 10
   Assembled:  91.3 %
 
-julia> VambBenchmarks.subset(ref; sequences=s -> length(s) ≥ 25)
+julia> BinBencherBackend.subset(ref; sequences=s -> length(s) ≥ 25)
 Reference
   Genomes:    3
   Sequences:  9
@@ -276,7 +276,7 @@ function Reference(json_struct::ReferenceJSON, min_seq_length::Int)
     if json_struct.version != JSON_VERSION
         @warn (
             "Deserializing reference JSON of version $(json_struct.version), " *
-            "but the supported version of the currently loaded version of VambBenchmarks is $(JSON_VERSION)."
+            "but the supported version of the currently loaded version of BinBencherBackend is $(JSON_VERSION)."
         )
     end
     ref = Reference(unsafe)

@@ -1,9 +1,9 @@
 ```@meta
 DocTestSetup = quote
-    using VambBenchmarks
+    using BinBencherBackend
 
     (path_to_ref_file, path_to_bins_file) = let
-        dir = joinpath(Base.pkgdir(VambBenchmarks), "files")
+        dir = joinpath(Base.pkgdir(BinBencherBackend), "files")
         (joinpath(dir, "ref.json"), joinpath(dir, "clusters.tsv"))
     end
 end
@@ -14,7 +14,7 @@ end
 ## Loading the reference
 First, let's load the reference:
 ```jldoctest walk
-julia> using VambBenchmarks
+julia> using BinBencherBackend
 
 julia> ref = Reference(path_to_ref_file)
 Reference
@@ -83,7 +83,7 @@ The _flags_ can be extracted with the `flags(genome)` function - each genome con
 ```jldoctest walk
 julia> flags(genome)
 FlagSet with 1 element:
-  VambBenchmarks.Flags.organism
+  BinBencherBackend.Flags.organism
 ```
 
 ... in this case, this genome is an organism as opposed to a plasmid or virus.
