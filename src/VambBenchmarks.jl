@@ -44,6 +44,7 @@ end
 
 export Sequence,
     flags,
+    Flag,
     Flags,
     FlagSet,
     Source,

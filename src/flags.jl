@@ -7,15 +7,28 @@ end
 
 using .Flags
 
+const NAME_TO_FLAG = Dict(string(f)=>f for f in instances(Flags.Flag))
+
+Base.tryparse(::Type{Flag}, s::AbstractString) = get(NAME_TO_FLAG, lowercase(s), nothing)
+
 @doc """
-        Flag
+    Flag
 
-    A flag is a boolean associated to a `Genome`, stored in a `Flags` object.
-    A flag may be e.g. `Flag.organism`, signaling that the genome is known to be
-    an organism.
+A flag is a boolean associated to a `Genome`, stored in a `Flags` object.
+A flag may be e.g. `Flag.organism`, signaling that the genome is known to be
+an organism.
 
-    See also: [`FlagSet`](@ref), [`Genome`](@ref)
-    """
+See also: [`FlagSet`](@ref), [`Genome`](@ref)
+
+# Examples
+```jldoctest
+julia> tryparse(Flag, "organism") == Flags.organism
+true
+
+julia> tryparse(Flag, "Canada") === nothing
+true
+```
+"""
 Flags.Flag
 
 """
@@ -24,6 +37,8 @@ Flags.Flag
 Flags are compact sets of `Flag` associated to a Genome.
 You can construct them from an iterable of `Flag`, e.g. a 1-element tuple.
 `FlagSet` support most set operations efficiently.
+
+See also: [`Flag`](@ref), [`Genome`](@ref)
 
 # Examples
 ```jldoctest
@@ -35,8 +50,6 @@ true
 julia> isdisjoint(flags, FlagSet((Flags.organism,)))
 false
 ```
-
-See also: [`Flag`](@ref), [`Genome`](@ref)
 """
 struct FlagSet <: AbstractSet{Flag}
     # TODO: Use fewer bits?
