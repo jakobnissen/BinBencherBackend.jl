@@ -26,7 +26,8 @@ ngenomes(ref) = length(genomes(ref))
 
     @test tryparse(Flag, "oRgANisM") == Flags.organism
     @test tryparse(Flag, "banana") === nothing
-    @test FlagSet((tryparse(Flag, "virus"), tryparse(Flag, "organism"))) == FlagSet([Flags.organism, Flags.virus])
+    @test FlagSet((tryparse(Flag, "virus"), tryparse(Flag, "organism"))) ==
+          FlagSet([Flags.organism, Flags.virus])
 
     flagsets = [empt, a, b, c, d]
     all_pairs = [(i, j) for i in flagsets for j in flagsets]

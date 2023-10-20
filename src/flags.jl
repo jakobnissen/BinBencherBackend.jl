@@ -7,7 +7,7 @@ end
 
 using .Flags
 
-const NAME_TO_FLAG = Dict(string(f)=>f for f in instances(Flags.Flag))
+const NAME_TO_FLAG = Dict(string(f) => f for f in instances(Flags.Flag))
 
 Base.tryparse(::Type{Flag}, s::AbstractString) = get(NAME_TO_FLAG, lowercase(s), nothing)
 

@@ -13,3 +13,16 @@ coverage:
        # advanced settings
         if_ci_failed: ignore
         informational: true
+    patch:
+      default:
+        # basic
+        target: auto
+        threshold: 10%
+        base: auto 
+        flags: 
+          - unittest
+        paths: 
+          - "src"
+       # advanced settings
+        if_ci_failed: ignore
+        informational: true
