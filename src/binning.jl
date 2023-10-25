@@ -290,8 +290,9 @@ function gold_standard(
             end
         end
     end
+    scratch = Tuple{Int, Int}[]
     bins = [
-        Bin("bin_" * genome.name, collect(seqs), ref.targets_by_name) for
+        Bin("bin_" * genome.name, collect(seqs), ref.targets_by_name, scratch) for
         (genome, seqs) in sequences_of_genome
     ]
     sort!(bins; by=i -> i.name)

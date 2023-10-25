@@ -215,6 +215,7 @@ end
         @test nbins(bins) == ngenomes(ref)
     end
     non_disjoint = last(gold_standards)
+    # This test is not guaranteed - it depends on the specifics of the ref.json
     @test non_disjoint.recoverable_genomes == non_disjoint.recovered_genomes[1][1, :]
 end
 
@@ -232,4 +233,18 @@ end
         bins2 = Binning(bins_path, ref1)
         test_is_same_binning(bins1, bins2)
     end
+end
+
+@testset "ref.json specifics" begin
+    ref = Reference(IOBuffer(REF_STR))
+    sources_by_name = Dict{String, Source{Genome}}()
+    for genome in genomes(ref), source in genome.sources
+        sources_by_name[source.name] = source
+    end
+    # Circular mapping
+    C2 = sources_by_name["subjC2"]
+    @test C2.length == 100
+    @test C2.assembly_size == 21 + 20 + 21
+
+    @test sources_by_name["subjC3"].assembly_size == 0
 end

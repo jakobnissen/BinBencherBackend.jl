@@ -22,7 +22,7 @@ Reference
   Sequences:  11
   Ranks:      3
   Seq length: 10
-  Assembled:  66.8 %
+  Assembled:  61.9 %
 ```
 
 This gives us a few statistics about the reference:
@@ -112,13 +112,13 @@ We can get the sequences mapping to this source:
 
 ```jldoctest walk
 julia> source.sequences
-6-element Vector{Tuple{Sequence, UnitRange{Int64}}}:
- (Sequence("s2", 40), 1:40)
- (Sequence("s8", 25), 2:26)
- (Sequence("s1", 25), 5:29)
- (Sequence("s1", 25), 10:34)
- (Sequence("s7", 20), 21:40)
- (Sequence("s3", 50), 51:98)
+6-element Vector{Tuple{Sequence, Tuple{Int64, Int64}}}:
+ (Sequence("s1", 25), (5, 29))
+ (Sequence("s1", 25), (10, 34))
+ (Sequence("s2", 40), (1, 40))
+ (Sequence("s3", 50), (51, 98))
+ (Sequence("s7", 20), (21, 40))
+ (Sequence("s8", 25), (2, 26))
 ```
 
 Where, e.g. the first entrance tells us that the sequence "s2" with a length of 40 maps to positions 1:40 (both inclusive).

@@ -43,7 +43,7 @@ Species "D", 2 genomes
 """
 Genome
 
-const Target = Tuple{Source{Genome}, UnitRange{Int}}
+const Target = Tuple{Source{Genome}, Tuple{Int, Int}}
 const Node = Union{Genome, Clade{Genome}}
 
 """
@@ -136,12 +136,12 @@ function add_source!(genome::Genome, name::AbstractString, length::Integer)
     genome
 end
 
-function finish!(genome::Genome)
+function finish!(genome::Genome, scratch::Vector{Tuple{Int, Int}})
     @isinit(genome.genome_size) && return genome
     @isinit(genome.parent) ||
         error(lazy"finish! called on genome \"$(genome.name)\" without assigned parent.")
     for source in genome.sources
-        @isinit(source.assembly_size) || finish!(source)
+        @isinit(source.assembly_size) || finish!(source, scratch)
     end
     @init! genome.genome_size = sum(i -> i.length, genome.sources; init=0)
     @init! genome.assembly_size = sum(i -> i.assembly_size, genome.sources; init=0)
