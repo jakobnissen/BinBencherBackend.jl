@@ -88,7 +88,8 @@ end
 
 function finish!(ref::Reference)
     @isinit(ref.fraction_assembled) && return ref
-    foreach(finish!, ref.genomes)
+    scratch = Tuple{Int, Int}[]
+    foreach(g -> finish!(g, scratch), ref.genomes)
     assembly_size = genome_size = 0
     for genome in ref.genomes
         assembly_size += genome.assembly_size
@@ -124,7 +125,7 @@ Reference
   Sequences:  11
   Ranks:      3
   Seq length: 10
-  Assembled:  66.8 %
+  Assembled:  61.9 %
 
 julia> subset(ref; genomes=g -> Flags.organism in flags(g))
 Reference
@@ -140,7 +141,7 @@ Reference
   Sequences:  9
   Ranks:      3
   Seq length: 25
-  Assembled:  61.1 %
+  Assembled:  56.2 %
 ```
 """
 function subset!(
@@ -228,8 +229,9 @@ function parse_bins(
     ref::Reference,
     binsplit_sep::Union{Nothing, AbstractString, Char}=nothing,
 )::Vector{Bin}
+    scratch = Tuple{Int, Int}[]
     [
-        Bin(binname, seqs, ref.targets_by_name) for
+        Bin(binname, seqs, ref.targets_by_name, scratch) for
         (binname, seqs) in parse_bins(io, Dict, ref, binsplit_sep)
     ]
 end
@@ -312,7 +314,7 @@ function Reference(json_struct::ReferenceJSON, min_seq_length::Int)
                     lazy"Sequence \"$(seq_name)\" maps to source \"$(source_name)\", but no such source in reference",
                 )
             end
-            (source, Int(from):Int(to))
+            (source, (Int(from), Int(to)))
         end
         seq = Sequence(seq_name, seq_length)
         add_sequence!(ref, seq, targets)

@@ -1,5 +1,5 @@
 """
-    Bin(name::AbstractString, sequences, targets)
+    Bin(name::AbstractString, sequences, targets, scratch)
 
 `Bin`s each represent a bin created by the binner. Conceptually, they are simply
 a set of `Sequence` with a name attached.
@@ -57,6 +57,7 @@ function Bin(
     name::AbstractString,
     sequences,
     targets::Dict{String, Tuple{Sequence, Vector{Target}}},
+    scratch::Vector{Tuple{Int, Int}},
 )
     # To make it work with arbitrary iterables of sequence
     seqs = vec(collect(sequences))::Vector{Sequence}
@@ -65,7 +66,7 @@ function Bin(
 
     # Which sequences map to the given genome, ints in bitset is indices into `seq`.
     genome_mapping = Dict{Genome, BitSet}()
-    source_mapping = Dict{Source{Genome}, Vector{UnitRange{Int}}}()
+    source_mapping = Dict{Source{Genome}, Vector{Tuple{Int, Int}}}()
     for (i, seq) in enumerate(seqs), (source, span) in last(targets[seq.name])
         push!(get!(valtype(genome_mapping), genome_mapping, source.genome), i)
         push!(get!(valtype(source_mapping), source_mapping, source), span)
@@ -79,7 +80,10 @@ function Bin(
     # Incrementally update `asmsize`; we need to compute this on a per-source level
     for (source, spans) in source_mapping
         (asmsize, foreign) = genomes[source.genome]
-        genomes[source.genome] = (; asmsize=asmsize + assembly_size(spans), foreign=foreign)
+        genomes[source.genome] = (;
+            asmsize=asmsize + assembly_size!(identity, scratch, spans, source.length),
+            foreign=foreign,
+        )
     end
     # We store sets of mapping sequences - the set mapping to a clade is the union of those
     # mapping to its children.
