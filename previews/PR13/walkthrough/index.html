@@ -7,7 +7,7 @@ Reference
   Sequences:  11
   Ranks:      3
   Seq length: 10
-  Assembled:  66.8 %</code></pre><p>This gives us a few statistics about the reference:</p><ul><li>Number of genomes</li><li>Number of sequences</li><li>Number of taxonomic ranks (strain, species, genus...)</li><li>Length of shortest sequence</li><li>Total length of genomes that are assembled</li></ul><p>The genomes here contain both plasmids and organisms, and the sequence length of 200 bp is too short. Let&#39;s filter the reference using <a href="../reference/#BinBencherBackend.subset!-Tuple{Reference}"><code>subset!</code></a> to only retain organisms, and sequences of length 25 or more:</p><pre><code class="language-julia-repl hljs">julia&gt; subset!(ref;
+  Assembled:  61.9 %</code></pre><p>This gives us a few statistics about the reference:</p><ul><li>Number of genomes</li><li>Number of sequences</li><li>Number of taxonomic ranks (strain, species, genus...)</li><li>Length of shortest sequence</li><li>Total length of genomes that are assembled</li></ul><p>The genomes here contain both plasmids and organisms, and the sequence length of 200 bp is too short. Let&#39;s filter the reference using <a href="../reference/#BinBencherBackend.subset!-Tuple{Reference}"><code>subset!</code></a> to only retain organisms, and sequences of length 25 or more:</p><pre><code class="language-julia-repl hljs">julia&gt; subset!(ref;
            genomes = is_organism,
            sequences = s -&gt; length(s) &gt;= 10
        )
@@ -35,13 +35,13 @@ genome:          Genome(gA)
   Length:        100
   Assembly size: 88
   Sequences:     6</code></pre><p>A <code>Source</code> is one of the genomic sequences that genomes are composed of. This is distinct from the assembled sequences that we will be binning - a <code>Source</code> represents the reference sequence, typically the full genome, assembled from a sequencing run on a clonal colony. For this genome, we can see it has a length of 100 bp, and that 5 sequences map to this source, covering 88 bp.</p><p>We can get the sequences mapping to this source:</p><pre><code class="language-julia-repl hljs">julia&gt; source.sequences
-6-element Vector{Tuple{Sequence, UnitRange{Int64}}}:
- (Sequence(&quot;s2&quot;, 40), 1:40)
- (Sequence(&quot;s8&quot;, 25), 2:26)
- (Sequence(&quot;s1&quot;, 25), 5:29)
- (Sequence(&quot;s1&quot;, 25), 10:34)
- (Sequence(&quot;s7&quot;, 20), 21:40)
- (Sequence(&quot;s3&quot;, 50), 51:98)</code></pre><p>Where, e.g. the first entrance tells us that the sequence &quot;s2&quot; with a length of 40 maps to positions 1:40 (both inclusive).</p><h2 id="Clades"><a class="docs-heading-anchor" href="#Clades">Clades</a><a id="Clades-1"></a><a class="docs-heading-anchor-permalink" href="#Clades" title="Permalink"></a></h2><p>Genomes are organised into a taxonomic hierarchy. We can find the immediate parent of a genome by accessing the field <code>genome.parent</code>. Let&#39;s look at another genome:</p><pre><code class="language-julia-repl hljs">julia&gt; genome2
+6-element Vector{Tuple{Sequence, Tuple{Int64, Int64}}}:
+ (Sequence(&quot;s1&quot;, 25), (5, 29))
+ (Sequence(&quot;s1&quot;, 25), (10, 34))
+ (Sequence(&quot;s2&quot;, 40), (1, 40))
+ (Sequence(&quot;s3&quot;, 50), (51, 98))
+ (Sequence(&quot;s7&quot;, 20), (21, 40))
+ (Sequence(&quot;s8&quot;, 25), (2, 26))</code></pre><p>Where, e.g. the first entrance tells us that the sequence &quot;s2&quot; with a length of 40 maps to positions 1:40 (both inclusive).</p><h2 id="Clades"><a class="docs-heading-anchor" href="#Clades">Clades</a><a id="Clades-1"></a><a class="docs-heading-anchor-permalink" href="#Clades" title="Permalink"></a></h2><p>Genomes are organised into a taxonomic hierarchy. We can find the immediate parent of a genome by accessing the field <code>genome.parent</code>. Let&#39;s look at another genome:</p><pre><code class="language-julia-repl hljs">julia&gt; genome2
 Genome &quot;gB&quot;
   Parent:        &quot;D&quot;
   Genome size:   50
@@ -105,4 +105,4 @@ julia&gt; recall_precision(genome2, bin)
 (recall = 0.6122448979591837, precision = 1.0)</code></pre><p>Or do the same for a higher clade - let&#39;s say a genus. In this case, we get the same result.</p><pre><code class="language-julia-repl hljs">julia&gt; genus = only(Iterators.filter(i -&gt; i.rank == 2, intersecting(Clade, bin)));
 
 julia&gt; recall_precision(genus, bin)
-(recall = 0.6122448979591837, precision = 1.0)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../reference/">Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.1.2 on <span class="colophon-date" title="Tuesday 24 October 2023 13:52">Tuesday 24 October 2023</span>. Using Julia version 1.9.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+(recall = 0.6122448979591837, precision = 1.0)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../reference/">Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.1.2 on <span class="colophon-date" title="Wednesday 25 October 2023 09:37">Wednesday 25 October 2023</span>. Using Julia version 1.9.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
