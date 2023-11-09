@@ -40,3 +40,13 @@ function open_perhaps_gzipped(f::Function, path::String)
         open(f, path; lock=false)
     end
 end
+
+# This function exists in order to be able to use a Set
+# to detect duplicates without hashing and indexing the Set
+# twice.
+function in!(s::AbstractSet, x)::Bool
+    xT = convert(eltype(s), x)
+    L = length(s)
+    push!(s, xT)
+    return length(s) == L
+end

@@ -312,10 +312,8 @@ function check_disjoint(bins)
     nseq = sum(i -> length(i.sequences), bins)
     seen_seqs = sizehint!(Set{Sequence}(), nseq)
     for bin in bins, seq in bin.sequences
-        if seq in seen_seqs
+        in!(seen_seqs, seq) &&
             error(lazy"Sequence \"$(seq.name)\" seen twice in disjoint Binning")
-        end
-        push!(seen_seqs, seq)
     end
     nothing
 end
