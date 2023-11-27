@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Walkthrough · BinBencherBackend.jl</title><meta name="title" content="Walkthrough · BinBencherBackend.jl"/><meta property="og:title" content="Walkthrough · BinBencherBackend.jl"/><meta property="twitter:title" content="Walkthrough · BinBencherBackend.jl"/><meta name="description" content="Documentation for BinBencherBackend.jl."/><meta property="og:description" content="Documentation for BinBencherBackend.jl."/><meta property="twitter:description" content="Documentation for BinBencherBackend.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">BinBencherBackend.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Walkthrough</a><ul class="internal"><li><a class="tocitem" href="#Loading-the-reference"><span>Loading the reference</span></a></li><li><a class="tocitem" href="#Genomes"><span>Genomes</span></a></li><li><a class="tocitem" href="#Sources"><span>Sources</span></a></li><li><a class="tocitem" href="#Clades"><span>Clades</span></a></li><li><a class="tocitem" href="#Binnings"><span>Binnings</span></a></li><li><a class="tocitem" href="#Bins"><span>Bins</span></a></li></ul></li><li><a class="tocitem" href="../reference/">Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Walkthrough</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Walkthrough</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/jakobnissen/BinBencherBackend.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/jakobnissen/BinBencherBackend.jl/blob/master/docs/src/walkthrough.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Example-walkthrough"><a class="docs-heading-anchor" href="#Example-walkthrough">Example walkthrough</a><a id="Example-walkthrough-1"></a><a class="docs-heading-anchor-permalink" href="#Example-walkthrough" title="Permalink"></a></h1><h2 id="Loading-the-reference"><a class="docs-heading-anchor" href="#Loading-the-reference">Loading the reference</a><a id="Loading-the-reference-1"></a><a class="docs-heading-anchor-permalink" href="#Loading-the-reference" title="Permalink"></a></h2><p>First, let&#39;s load the reference:</p><pre><code class="language-julia-repl hljs">julia&gt; using BinBencherBackend
+
+julia&gt; ref = Reference(path_to_ref_file)
+Reference
+  Genomes:    3
+  Sequences:  11
+  Ranks:      3
+  Seq length: 10
+  Assembled:  61.9 %</code></pre><p>This gives us a few statistics about the reference:</p><ul><li>Number of genomes</li><li>Number of sequences</li><li>Number of taxonomic ranks (strain, species, genus...)</li><li>Length of shortest sequence</li><li>Total length of genomes that are assembled</li></ul><p>The genomes here contain both plasmids and organisms, and the sequence length of 200 bp is too short. Let&#39;s filter the reference using <a href="../reference/#BinBencherBackend.subset!-Tuple{Reference}"><code>subset!</code></a> to only retain organisms, and sequences of length 25 or more:</p><pre><code class="language-julia-repl hljs">julia&gt; subset!(ref;
+           genomes = is_organism,
+           sequences = s -&gt; length(s) &gt;= 10
+       )
+Reference
+  Genomes:    2
+  Sequences:  11
+  Ranks:      3
+  Seq length: 10
+  Assembled:  91.3 %</code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>The function <a href="../reference/#BinBencherBackend.subset!-Tuple{Reference}"><code>subset!</code></a> will mutate the reference, whereas the function <a href="../reference/#BinBencherBackend.subset-Tuple{Reference}"><code>subset</code></a> will create a new independent reference. At the moment, the latter is much slower.</p></div></div><p>We removed a single genome, namely one labeled as virus.</p><h2 id="Genomes"><a class="docs-heading-anchor" href="#Genomes">Genomes</a><a id="Genomes-1"></a><a class="docs-heading-anchor-permalink" href="#Genomes" title="Permalink"></a></h2><p>We can explore the genomes contained in the reference with the <code>genomes</code> function, which returns an iterable of <code>Genome</code> (in this case, a <code>Set</code>):</p><pre><code class="language-julia-repl hljs">julia&gt; genomes(ref)
+Set{Genome} with 2 elements:
+  Genome(gA)
+  Genome(gB)</code></pre><p>Let&#39;s look at a <code>Genome</code> in more detail:</p><pre><code class="language-julia-repl hljs">julia&gt; genome, genome2 = genomes(ref);
+
+julia&gt; genome
+Genome &quot;gA&quot;
+  Parent:        &quot;D&quot;
+  Genome size:   100
+  Assembly size: 88 (88.0 %)
+  Sources:       1
+  Flags:         1 (organism)</code></pre><p>The <em>flags</em> can be extracted with the <code>flags(genome)</code> function - each genome contains zero or more flags:</p><pre><code class="language-julia-repl hljs">julia&gt; flags(genome)
+FlagSet with 1 element:
+  BinBencherBackend.Flags.organism</code></pre><p>... in this case, this genome is an organism as opposed to a plasmid or virus. You can see all possible flags with <code>instances(Flags.Flag)</code>.</p><p>See also the helper functions <a href="../reference/#BinBencherBackend.is_organism-Tuple{Genome}"><code>is_organism</code></a>, <a href="../reference/#BinBencherBackend.is_virus-Tuple{Genome}"><code>is_virus</code></a> and <a href="../reference/#BinBencherBackend.is_plasmid-Tuple{Genome}"><code>is_plasmid</code></a></p><h2 id="Sources"><a class="docs-heading-anchor" href="#Sources">Sources</a><a id="Sources-1"></a><a class="docs-heading-anchor-permalink" href="#Sources" title="Permalink"></a></h2><p>The <code>genome</code> has one source - let&#39;s look at that</p><pre><code class="language-julia-repl hljs">julia&gt; source = only(genome.sources)
+Source &quot;subjA1&quot;
+genome:          Genome(gA)
+  Length:        100
+  Assembly size: 88
+  Sequences:     6</code></pre><p>A <code>Source</code> is one of the genomic sequences that genomes are composed of. This is distinct from the assembled sequences that we will be binning - a <code>Source</code> represents the reference sequence, typically the full genome, assembled from a sequencing run on a clonal colony. For this genome, we can see it has a length of 100 bp, and that 5 sequences map to this source, covering 88 bp.</p><p>We can get the sequences mapping to this source:</p><pre><code class="language-julia-repl hljs">julia&gt; source.sequences
+6-element Vector{Tuple{Sequence, Tuple{Int64, Int64}}}:
+ (Sequence(&quot;s1&quot;, 25), (5, 29))
+ (Sequence(&quot;s1&quot;, 25), (10, 34))
+ (Sequence(&quot;s2&quot;, 40), (1, 40))
+ (Sequence(&quot;s3&quot;, 50), (51, 98))
+ (Sequence(&quot;s7&quot;, 20), (21, 40))
+ (Sequence(&quot;s8&quot;, 25), (2, 26))</code></pre><p>Where, e.g. the first entrance tells us that the sequence &quot;s2&quot; with a length of 40 maps to positions 1:40 (both inclusive).</p><h2 id="Clades"><a class="docs-heading-anchor" href="#Clades">Clades</a><a id="Clades-1"></a><a class="docs-heading-anchor-permalink" href="#Clades" title="Permalink"></a></h2><p>Genomes are organised into a taxonomic hierarchy. We can find the immediate parent of a genome by accessing the field <code>genome.parent</code>. Let&#39;s look at another genome:</p><pre><code class="language-julia-repl hljs">julia&gt; genome2
+Genome &quot;gB&quot;
+  Parent:        &quot;D&quot;
+  Genome size:   50
+  Assembly size: 49 (98.0 %)
+  Sources:       2
+  Flags:         1 (organism)
+
+julia&gt; clade = genome2.parent
+Species &quot;D&quot;, 2 genomes
+├─ Genome(gA)
+└─ Genome(gB)</code></pre><p>The parent is an instance of a <code>Clade</code>. <code>Clade</code>s are at a specific rank: Rank 1 for species, 2 for genus, 3 for family, etc. Every clade has one or more children: These are the clades one rank lower. Conceptually, rank zero corresponds to <code>Genome</code>s (OTUs, for this reference dataset)</p><pre><code class="language-julia-repl hljs">julia&gt; clade.children
+2-element Vector{Genome}:
+ Genome(gA)
+ Genome(gB)</code></pre><p>We can find the most recent common ancestor (MRCA) of <code>genome</code> and <code>genome2</code> like this:</p><pre><code class="language-julia-repl hljs">julia&gt; mrca(genome, genome2)
+Species &quot;D&quot;, 2 genomes
+├─ Genome(gA)
+└─ Genome(gB)</code></pre><p>They are very distantly related, so the domain &quot;Bacteria&quot;, one of the highest ranked <code>Clade</code>s, are their most recent common ancestor.</p><p>The top clade can be found with the <code>top_clade(ref)</code> function, which is the universal ancestor of all clades in the reference.</p><h2 id="Binnings"><a class="docs-heading-anchor" href="#Binnings">Binnings</a><a id="Binnings-1"></a><a class="docs-heading-anchor-permalink" href="#Binnings" title="Permalink"></a></h2><p>A <code>Binning</code> is a set of bins benchmarked against a reference. We can load a set of Vamb bins and turn it into a <code>Binning</code> object like this:</p><pre><code class="language-julia-repl hljs">julia&gt; binning = Binning(path_to_bins_file, ref)
+Binning
+  Reference
+    Genomes:    2
+    Sequences:  11
+    Ranks:      3
+    Seq length: 10
+    Assembled:  91.3 %
+  Bins:        6
+  NC genomes:  0
+  Precisions: [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
+  Recalls:    [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
+  Recoverable genomes: [2, 2, 2, 1, 1, 0]
+  Reconstruction (assemblies):
+    P\R   0.6  0.7  0.8  0.9 0.95 0.99
+    0.6     1    0    0    0    0    0
+    0.7     1    0    0    0    0    0
+    0.8     1    0    0    0    0    0
+    0.9     1    0    0    0    0    0
+    0.95    1    0    0    0    0    0
+    0.99    1    0    0    0    0    0</code></pre><p>A wealth of information is readily available:</p><ul><li><code>binning.ref</code> gives the underlying <code>Reference</code></li><li><code>binning.recalls</code> and <code>binning.precisions</code> gives the recall/precision thresholds used in benchmarking</li><li>You can get the number of genomes that are assembled at the various recall levels with <code>recoverable_genomes</code>: This sets an upper limit of how many genomes can be reconstructed given a hypothetical perfect binning</li></ul><pre><code class="language-julia-repl hljs">julia&gt; println(binning.recoverable_genomes)
+[2, 2, 2, 1, 1, 0]</code></pre><p>The function <code>print_matrix</code> will display the number of recovered genomes/assemblies. It takes two optional keyword: <code>level</code>, the taxonomic rank (defaults to 0, meaning strain level), and <code>assembly</code> which defaults to <code>true</code>. If set to <code>false</code>, benchmark number of recovered genomes, not number of recovered assemblies.</p><pre><code class="language-julia-repl hljs">julia&gt; print_matrix(binning; level=1, assembly=false)
+P\R   0.6  0.7  0.8  0.9 0.95 0.99
+0.6     1    0    0    0    0    0
+0.7     1    0    0    0    0    0
+0.8     1    0    0    0    0    0
+0.9     1    0    0    0    0    0
+0.95    1    0    0    0    0    0
+0.99    1    0    0    0    0    0</code></pre><p>You can also get the number of genomes or assemblies reconstructed at a given precision/recall level directly with <code>n_recovered</code>:</p><pre><code class="language-julia-repl hljs">julia&gt; n_recovered(binning, 0.6, 0.7; assembly=true)
+1
+
+julia&gt; n_recovered(binning, 0.66, 0.91; level=1)
+0</code></pre><h2 id="Bins"><a class="docs-heading-anchor" href="#Bins">Bins</a><a id="Bins-1"></a><a class="docs-heading-anchor-permalink" href="#Bins" title="Permalink"></a></h2><p>The <code>Binning</code> object obviously contains our bins. Let&#39;s pick a random bin:</p><pre><code class="language-julia-repl hljs">julia&gt; bin = binning.bins[4]
+Bin &quot;C4&quot;
+  Sequences: 3
+  Breadth:   55
+  Intersecting 2 genomes</code></pre><p>The &quot;breadth&quot; here is the sum of the length of its sequences. <code>bin.sequences</code> gets an iterable of its sequences:</p><pre><code class="language-julia-repl hljs">julia&gt; collect(bin.sequences)
+3-element Vector{Sequence}:
+ Sequence(&quot;s5&quot;, 25)
+ Sequence(&quot;s6&quot;, 10)
+ Sequence(&quot;s7&quot;, 20)</code></pre><p>The &quot;Intersecting 2 genomes&quot; means that the sequences map to 2 different genomes - the only two in the reference. We can get that with the function <a href="../reference/#BinBencherBackend.intersecting-Tuple{Bin}"><code>intersecting</code></a>, then get the precision/recall with <a href="../reference/#BinBencherBackend.recall_precision-Tuple{Genome, Bin}"><code>recall_precision</code></a>:</p><pre><code class="language-julia-repl hljs">julia&gt; Set(intersecting(bin)) == genomes(ref)
+true
+
+julia&gt; recall_precision(genome2, bin)
+(recall = 0.6122448979591837, precision = 1.0)</code></pre><p>Or do the same for a higher clade - let&#39;s say a genus. In this case, we get the same result.</p><pre><code class="language-julia-repl hljs">julia&gt; genus = only(Iterators.filter(i -&gt; i.rank == 2, intersecting(Clade, bin)));
+
+julia&gt; recall_precision(genus, bin)
+(recall = 0.6122448979591837, precision = 1.0)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../reference/">Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.1.2 on <span class="colophon-date" title="Monday 27 November 2023 14:37">Monday 27 November 2023</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
