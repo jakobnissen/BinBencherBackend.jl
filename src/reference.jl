@@ -242,11 +242,15 @@ function parse_bins(
     ref::Reference,
     binsplit_sep::Union{Nothing, AbstractString, Char}=nothing,
 )::Dict{<:AbstractString, Vector{Sequence}}
-    itr = tab_pairs(eachline(io))
-    if binsplit_sep !== nothing
-        itr = binsplit_tab_pairs(itr, binsplit_sep)
+    lines = eachline(io)
+    header = "clustername\tcontigname"
+    it = iterate(lines)
+    if (isnothing(it) ? nothing : rstrip(first(it))) != header
+        error(lazy"Expected following header line in cluster file: $(repr(header))")
     end
-    seqs_by_binname = Dict{SubString{String}, Vector{Sequence}}()
+    itr = tab_pairs(lines)
+    itr = isnothing(binsplit_sep) ? itr : binsplit_tab_pairs(itr, binsplit_sep)
+    seqs_by_binname = Dict{String, Vector{Sequence}}()
     for (binname, seqname) in itr
         (seq, _) = ref.targets_by_name[seqname]
         push!(get!(valtype(seqs_by_binname), seqs_by_binname, binname), seq)
