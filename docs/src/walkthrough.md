@@ -184,7 +184,6 @@ Binning
   NC genomes:  0
   Precisions: [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
   Recalls:    [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
-  Recoverable genomes: [2, 2, 2, 1, 1, 0]
   Reconstruction (assemblies):
     P\R   0.6  0.7  0.8  0.9 0.95 0.99
     0.6     1    0    0    0    0    0
@@ -198,13 +197,6 @@ Binning
 A wealth of information is readily available:
 * `binning.ref` gives the underlying `Reference`
 * `binning.recalls` and `binning.precisions` gives the recall/precision thresholds used in benchmarking
-* You can get the number of genomes that are assembled at the various recall levels with `recoverable_genomes`:
-  This sets an upper limit of how many genomes can be reconstructed given a hypothetical perfect binning
-
-```jldoctest walk
-julia> println(binning.recoverable_genomes)
-[2, 2, 2, 1, 1, 0]
-```
 
 The function `print_matrix` will display the number of recovered genomes/assemblies.
 It takes two optional keyword: `level`, the taxonomic rank (defaults to 0, meaning strain level),

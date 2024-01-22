@@ -149,8 +149,7 @@ end
 function test_is_same_binning(a::Binning, b::Binning)
     @test a.ref === b.ref
     @test [i.name for i in a.bins] == [i.name for i in b.bins]
-    for field in
-        [:recovered_asms, :recovered_genomes, :recoverable_genomes, :recalls, :precisions]
+    for field in [:recovered_asms, :recovered_genomes, :recalls, :precisions]
         @test getfield(a, field) == getfield(b, field)
     end
 end
@@ -193,12 +192,10 @@ end
     # Test filter_genomes works
     empty_binning = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes=Returns(false))
     @test n_recovered(empty_binning, 0.1, 0.1) == 0
-    @test iszero(maximum(empty_binning.recoverable_genomes))
 
     only_virus = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes=is_virus)
     @test BinBencherBackend.n_nc(only_virus) == 0
     @test n_recovered(only_virus, 0.1, 0.1; assembly=true) == 1
-    @test iszero(maximum(only_virus.recoverable_genomes))
 
     bins2 = Binning(CLUSTERS_PATH, ref)
     test_is_same_binning(bins, bins2)
@@ -214,9 +211,6 @@ end
         @test bins isa Binning
         @test nbins(bins) == ngenomes(ref)
     end
-    non_disjoint = last(gold_standards)
-    # This test is not guaranteed - it depends on the specifics of the ref.json
-    @test non_disjoint.recoverable_genomes == non_disjoint.recovered_genomes[1][1, :]
 end
 
 @testset "From gzipped" begin
