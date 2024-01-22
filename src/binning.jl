@@ -7,8 +7,6 @@ const DEFAULT_PRECISIONS = (0.6, 0.7, 0.8, 0.9, 0.95, 0.99)
 A `Binning` represents a set of `Bin`s benchmarked against a `Reference`.
 `Binning`s can be created given a set of `Bin`s and a `Reference`, where the
 bins may potentially be loaded from a `.tsv` file.
-The field `binning.recoverable_genomes` shows the maximal number of recoverable genomes
-at given recall levels given perfect binning.
 The fields `recovered_asms` and `recovered_genomes` are used for benchmarking,
 these are normally output using the `print_matrix` function.
 
@@ -61,9 +59,6 @@ struct Binning
     # One matrix per rank - first is genome, then upwards
     recovered_asms::Vector{Matrix{Int}}
     recovered_genomes::Vector{Matrix{Int}}
-    # If perfect binning, this number of genomes could be recovered at the
-    # various recall levels
-    recoverable_genomes::Vector{Int}
     recalls::Vector{Float64}
     precisions::Vector{Float64}
 end
@@ -95,7 +90,6 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
         end
         print(io, "\n  Precisions: ", repr([round(i; digits=3) for i in x.precisions]))
         print(io, "\n  Recalls:    ", repr([round(i; digits=3) for i in x.recalls]))
-        print(io, "\n  Recoverable genomes: ", repr(x.recoverable_genomes))
         print(io, "\n  Reconstruction (assemblies):\n")
         seekstart(buf)
         print_matrix(buf, x; level=0, assembly=true)
@@ -227,28 +221,9 @@ function Binning(
     checked_precisions = validate_recall_precision(precisions)
     bins = vector(bins_)
     disjoint && check_disjoint(bins)
-    recoverable_genomes = zeros(Float64, length(checked_recalls))
-    for genome in ref.genomes
-        !isnothing(considered_genomes) && genome ∉ considered_genomes && continue
-        i = searchsortedlast(checked_recalls, genome.assembly_size / genome.genome_size)
-        iszero(i) && continue
-        recoverable_genomes[i] += 1
-    end
-    # If a genome is recoverable at recall 0.5, it's recoverable at recalls < 0.5
-    for i in (length(recoverable_genomes) - 1):-1:1
-        recoverable_genomes[i] += recoverable_genomes[i + 1]
-    end
     (asm_matrices, genome_matrices) =
         benchmark(ref, bins, checked_recalls, checked_precisions; considered_genomes)
-    Binning(
-        ref,
-        bins,
-        asm_matrices,
-        genome_matrices,
-        recoverable_genomes,
-        checked_recalls,
-        checked_precisions,
-    )
+    Binning(ref, bins, asm_matrices, genome_matrices, checked_recalls, checked_precisions)
 end
 
 """
