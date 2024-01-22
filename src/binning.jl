@@ -253,14 +253,20 @@ end
 
 """
     gold_standard(
-        ref::Reference;
+        ref::Reference
+        [sequences, an iterable of bins or Binning];
         disjoint=true,
         recalls=DEFAULT_RECALLS,
         precisions=DEFAULT_PRECISIONS
     )::Binning
 
-Create the optimal `Binning` object given an assembly.
+Create the optimal `Binning` object given a `Reference`, by the optimal binning of
+`sequences`.
 If `disjoint`, assign each sequence to only a single genome.
+
+If `sequences` is not passed, use all sequences in `ref`. If a `Binning` is passed,
+use all sequences in any of its bins. Else, pass an iterable of `Sequence`.
+The elements of `Sequence` must be unique.
 
 ## Extended help
 Currently, the `disjoint` option uses a simple greedy algorithm to assign
@@ -268,26 +274,48 @@ sequences to genomes.
 """
 function gold_standard(
     ref::Reference;
-    disjoint=true,
+    disjoint::Bool=true,
+    recalls=DEFAULT_RECALLS,
+    precisions=DEFAULT_PRECISIONS,
+)::Binning
+    gold_standard(
+        ref,
+        (first(v) for v in values(ref.targets_by_name));
+        disjoint,
+        recalls,
+        precisions,
+    )
+end
+
+function gold_standard(
+    ref::Reference,
+    binning::Binning;
+    disjoint::Bool=true,
+    recalls=DEFAULT_RECALLS,
+    precisions=DEFAULT_PRECISIONS,
+)::Binning
+    seqs = reduce((s, bin) -> union!(s, bin.sequences), binning.bins; init=Set{Sequence}())
+    gold_standard(ref, seqs; disjoint, recalls, precisions)
+end
+
+function gold_standard(
+    ref::Reference,
+    sequences; # Iterator of Sequence
+    disjoint::Bool=true,
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS,
 )::Binning
     sequences_of_genome = Dict{Genome, Set{Sequence}}()
-    for (_, (sequence, targets)) in ref.targets_by_name
+    for sequence::Sequence in sequences
+        targets = last(ref.targets_by_name[sequence.name])
         isempty(targets) && continue
-        if disjoint
-            source = first(targets[last(findmax(i -> length(last(i)), targets))])
+        best_index = disjoint ? last(findmax(i -> length(last(i)), targets)) : 0
+        for (i, (source, _)) in enumerate(targets)
+            disjoint && i != best_index && continue
             push!(
                 get!(valtype(sequences_of_genome), sequences_of_genome, source.genome),
                 sequence,
             )
-        else
-            for (source, _) in targets
-                push!(
-                    get!(valtype(sequences_of_genome), sequences_of_genome, source.genome),
-                    sequence,
-                )
-            end
         end
     end
     scratch = Tuple{Int, Int}[]
