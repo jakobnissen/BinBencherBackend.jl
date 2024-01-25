@@ -57,11 +57,14 @@ function finish!(source::Source, scratch::Vector{Tuple{Int, Int}})
     source
 end
 
-# v: Vector of X, where by(X) isa Tuple{Integer, Integer}
+"""Compute the number of positions in `v` covered at least once.
+`v` must be a `Vector` such that `all(by(i) isa Tuple{Integer, Integer} for i in v)`.
+The `scratch` input is mutated.
+"""
 function assembly_size!(
     by::Function,
     scratch::Vector{Tuple{Int, Int}},
-    v::Vector,
+    v::Vector, # v: Vector of X, where by(X) isa Tuple{Integer, Integer}
     source_len::Int,
 )::Integer
     # First pass: Convert elements into Tuple{Int, Int}, and count the number
@@ -69,7 +72,7 @@ function assembly_size!(
     # to the beginning)
     n_circular_mappings = 0
     resize!(scratch, length(v))
-    for i in eachindex(scratch, v)
+    @inbounds for i in eachindex(scratch, v)
         (start_, stop_) = by(v[i])::Tuple{Integer, Integer}
         (start, stop) = (Int(start_), Int(stop_))
         n_circular_mappings += start > stop
@@ -79,7 +82,6 @@ function assembly_size!(
     # two non-circular spans.
     # This is probably rare, so this function is written to be significantly
     # faster when this branch is not taken
-    # TODO: @inbounds, and remove @assert?
     if !iszero(n_circular_mappings)
         old_size = length(scratch)
         new_size = old_size + n_circular_mappings
@@ -87,7 +89,7 @@ function assembly_size!(
         # We write the extra split circular spans from the end of the vector,
         # to avoid overwriting elements that we are currently reading
         written_extras = 0
-        for i in 1:old_size
+        @inbounds for i in 1:old_size
             (start, stop) = scratch[i]
             if start > stop
                 scratch[i] = (1, stop)
@@ -97,6 +99,7 @@ function assembly_size!(
                 scratch[i] = (start, stop)
             end
         end
+        # TODO: remove @assert?
         @assert written_extras == n_circular_mappings
     end
     # Now we know we have a Vector{Tuple{Int, Int}} with no circular mappings,
