@@ -226,18 +226,6 @@ end
 
 function parse_bins(
     io::IO,
-    ref::Reference,
-    binsplit_sep::Union{Nothing, AbstractString, Char}=nothing,
-)::Vector{Bin}
-    scratch = Tuple{Int, Int}[]
-    [
-        Bin(binname, seqs, ref.targets_by_name, scratch) for
-        (binname, seqs) in parse_bins(io, Dict, ref, binsplit_sep)
-    ]
-end
-
-function parse_bins(
-    io::IO,
     ::Type{Dict},
     ref::Reference,
     binsplit_sep::Union{Nothing, AbstractString, Char}=nothing,
