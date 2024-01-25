@@ -197,10 +197,16 @@ function Binning(
     precisions=DEFAULT_PRECISIONS,
     filter_genomes::Function=Returns(true),
 )
-    bins = sort!(parse_bins(io, ref, binsplit_separator); by=i -> i.name)
-    filter!(bins) do bin
-        nseqs(bin) >= min_seqs && bin.breadth >= min_size
+    seqs_by_binname = parse_bins(io, Dict, ref, binsplit_separator)
+    filter!(seqs_by_binname) do (_, seqs)
+        length(seqs) ≥ min_seqs && sum(length, seqs; init=0) ≥ min_size
     end
+    scratch = Tuple{Int, Int}[]
+    bins = [
+        Bin(binname, seqs, ref.targets_by_name, scratch) for
+        (binname, seqs) in seqs_by_binname
+    ]
+    sort!(bins; by=i -> i.name)
     Binning(bins, ref; recalls, precisions, disjoint, filter_genomes)
 end
 
