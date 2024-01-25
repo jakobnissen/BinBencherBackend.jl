@@ -64,7 +64,7 @@ function Bin(
     mapping_breadth =
         sum(length(s) for s in seqs if !isempty(last(targets[s.name])); init=0)
 
-    # Which sequences map to the given genome, ints in bitset is indices into `seq`.
+    # Which sequences map to the given genome, ints in bitset is indices into `seqs`.
     genome_mapping = Dict{Genome, BitSet}()
     source_mapping = Dict{Source{Genome}, Vector{Tuple{Int, Int}}}()
     for (i, seq) in enumerate(seqs), (source, span) in last(targets[seq.name])
@@ -87,16 +87,22 @@ function Bin(
     end
     # We store sets of mapping sequences - the set mapping to a clade is the union of those
     # mapping to its children.
-    clade_mapping = Dict{Clade{Genome}, Tuple{Float64, Float64, BitSet}}() # (asm_recall, genome_recall)
-    for (genome, (asmsize, _)) in genomes
+    clade_mapping = Dict{
+        Clade{Genome},
+        @NamedTuple{asm_recall::Float64, genome_recall::Float64, mapping_seqs::BitSet}
+    }()
+    for (genome, (; asmsize)) in genomes
         asm_recall = asmsize / genome.assembly_size
         genome_recall = asmsize / genome.genome_size
-        (old_asm_recall, old_genome_recall, mapping) =
-            get!(() -> (0.0, 0.0, BitSet()), clade_mapping, genome.parent)
-        clade_mapping[genome.parent] = (
-            max(old_asm_recall, asm_recall),
-            max(old_genome_recall, genome_recall),
-            union!(mapping, genome_mapping[genome]),
+        (old_asm_recall, old_genome_recall, mapping) = get!(
+            () -> (; asm_recall=0.0, genome_recall=0.0, mapping_seqs=BitSet()),
+            clade_mapping,
+            genome.parent,
+        )
+        clade_mapping[genome.parent] = (;
+            asm_recall=max(old_asm_recall, asm_recall),
+            genome_recall=max(old_genome_recall, genome_recall),
+            mapping_seqs=union!(mapping, genome_mapping[genome]),
         )
     end
     # Now, iteratively compute clades at a higher and higher level.
@@ -109,20 +115,23 @@ function Bin(
             parent = clade.parent
             # If top level clade: Do not continue to next generation
             parent === nothing && continue
-            (parent_asm_recall, parent_genome_recall, parent_mapping) =
-                get!(() -> (0.0, 0.0, BitSet()), clade_mapping, parent)
+            (parent_asm_recall, parent_genome_recall, parent_mapping) = get!(
+                () -> (; asm_recall=0.0, genome_recall=0.0, mapping_seqs=BitSet()),
+                clade_mapping,
+                parent,
+            )
             (child_asm_recall, child_genome_recall, child_mapping) = clade_mapping[clade]
             clade_mapping[parent] = (
-                max(parent_asm_recall, child_asm_recall),
-                max(parent_genome_recall, child_genome_recall),
-                union!(parent_mapping, child_mapping),
+                asm_recall=max(parent_asm_recall, child_asm_recall),
+                genome_recall=max(parent_genome_recall, child_genome_recall),
+                mapping_seqs=union!(parent_mapping, child_mapping),
             )
             push!(next_generation, parent)
         end
         isempty(next_generation) && break
         # Reuse the sets for next generation by swapping them and emptying the now-used up
         (this_generation, next_generation) = (next_generation, this_generation)
-        empty!(next_generation)
+        @assert isempty(next_generation)
     end
     # Now, having computed the sets of mapping contigs, we can compute the actual precision values
     clades = Dict{
