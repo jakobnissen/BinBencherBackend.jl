@@ -235,13 +235,85 @@ function recall_precision(clade::Clade{Genome}, bin::Bin; assembly::Bool=true)
     assembly ? (; recall=asm_recall, precision) : (; recall=genome_recall, precision)
 end
 
-function fscore(genome::Genome, bin::Bin, b::Real)
-    (; recall, precision) = recall_precision(genome, bin)
+function fscore(recall::Real, precision::Real, b::Real)
     # Some people say the Fscore is undefined in this case.
     # We define it to be 0.0
     if iszero(recall + precision)
-        return 0.0
+        zero(float(recall))
+    else
+        (1 + b^2) * (recall * precision) / ((b^2 * precision) + recall)
     end
-    (1 + b^2) * (recall * precision) / ((b^2 * precision) + recall)
 end
-f1(genome::Genome, bin::Bin) = fscore(genome, bin, 1)
+f1(recall::Real, precision::Real) = fscore(recall, precision, 1)
+
+function fscore(genome::Genome, bin::Bin, b::Real; assembly::Bool=true)
+    (; recall, precision) = recall_precision(genome, bin; assembly)
+    fscore(recall, precision, b)
+end
+f1(genome::Genome, bin::Bin; assembly::Bool=true) = fscore(genome, bin, 1; assembly)
+
+function recalls_precisions(::Type{Genome}, bin::Bin; assembly::Bool=true)
+    bin.genomes |> imap() do (genome, (; asmsize, foreign))
+        fn = (assembly ? genome.assembly_size : genome.genome_size) - asmsize
+        recall = asmsize / (asmsize + fn)
+        precision = asmsize / (asmsize + foreign)
+        (; genome, recall, precision)
+    end
+end
+
+function recalls_precisions(::Type{<:Clade}, bin::Bin; assembly::Bool=true)
+    bin.clades |> imap() do (clade, (; asm_recall, genome_recall, precision))
+        recall = assembly ? asm_recall : genome_recall
+        (; clade, recall, precision)
+    end
+end
+
+function recalls_precisions(bin::Bin; assembly::Bool=true)
+    recalls_precisions(Genome, bin; assembly)
+end
+
+"""
+    passes_f1(bin::Bin, threshold::Real; assembly::Bool=false)::Bool
+
+Computes if `bin` has an F1 score equal to, or higher than `threshold` for any genome.
+
+# Examples
+```jldoctest
+julia> obs_f1 = f1(only(intersecting(bin)), bin)
+0.625
+
+julia> passes_f1(bin, obs_f1)
+true
+
+julia> passes_f1(bin, obs_f1 + 0.001)
+false
+```
+"""
+function passes_f1(bin::Bin, threshold::Real; assembly::Bool=true)
+    any(recalls_precisions(Genome, bin; assembly)) do (; recall, precision)
+        f1(recall, precision) ≥ threshold
+    end
+end
+
+"""
+    passes_recall_precision(bin::Bin, recall::Real, precision::Real; assembly::Bool=false)::Bool
+
+Computes if `bin` intersects with any `Genome` with at least the given recall and precision thresholds.
+
+# Examples
+```jldoctest
+julia> (r, p) = recall_precision(only(intersecting(bin)), bin)
+(recall = 0.45454545454545453, precision = 1.0)
+
+julia> passes_recall_precision(bin, 0.45, 1.0)
+true
+
+julia> passes_recall_precision(bin, 0.46, 1.0)
+false
+```
+"""
+function passes_recall_precision(bin::Bin, rec::Real, prec::Real; assembly::Bool=true)
+    any(recalls_precisions(Genome, bin; assembly)) do (; recall, precision)
+        recall ≥ rec && precision ≥ prec
+    end
+end
