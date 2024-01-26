@@ -67,6 +67,8 @@ export Sequence,
     subset,
     subset!,
     f1,
+    passes_f1,
+    passes_recall_precision,
     fscore,
     mrca,
     print_matrix
