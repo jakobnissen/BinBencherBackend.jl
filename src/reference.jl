@@ -1,7 +1,8 @@
 @lazy mutable struct Reference
     const genomes::Set{Genome}
-    # Sequence name => (sequence, targets)
-    const targets_by_name::Dict{String, Tuple{Sequence, Vector{Target}}}
+    # Sequence name => index into targets
+    const target_index_by_name::Dict{String, UInt32}
+    const targets::Vector{Tuple{Sequence, Vector{Target}}}
     const clades::Vector{Vector{Clade{Genome}}}
     @lazy shortest_seq_len::Int
     @lazy fraction_assembled::Float64
@@ -48,7 +49,8 @@ Reference
 function Reference(::Unsafe)
     Reference(
         Set{Genome}(),
-        Dict{String, Tuple{Sequence, Vector{Target}}}(),
+        Dict{String, Int}(),
+        Vector{Tuple{Sequence, Vector{Target}}}(),
         Vector{Clade{Genome}}[],
         uninit,
         uninit,
@@ -80,7 +82,7 @@ end
 
 top_clade(x::Reference) = only(last(x.clades))
 genomes(x::Reference) = x.genomes
-nseqs(x::Reference) = length(x.targets_by_name)
+nseqs(x::Reference) = length(x.targets)
 function nranks(x::Reference)
     isempty(x.genomes) && return 0
     length(x.clades) + 1
@@ -95,8 +97,7 @@ function finish!(ref::Reference)
         assembly_size += genome.assembly_size
         genome_size += genome.genome_size
     end
-    shortest_seq_len =
-        minimum(i -> length(first(i)), values(ref.targets_by_name); init=typemax(Int))
+    shortest_seq_len = minimum(i -> length(first(i)), ref.targets; init=typemax(Int))
     shortest_seq_len == typemax(Int) &&
         error("Cannot initialize a Reference with no sequences")
     @init! ref.shortest_seq_len = shortest_seq_len
@@ -152,8 +153,10 @@ function subset!(
     ref = uninit!(ref)
     genomes_to_remove = Genome[]
     sources_to_remove = Set{Source}()
-    filter!(ref.targets_by_name) do (_, v)
-        sequences(first(v))::Bool
+    kept_seqs = BitVector(sequences(first(i)) for i in ref.targets)
+    keepat!(ref.targets, kept_seqs)
+    filter!(ref.target_index_by_name) do (_, v)
+        kept_seqs[v]
     end
     filter!(ref.genomes) do g
         keep = genomes(g)::Bool
@@ -163,7 +166,7 @@ function subset!(
     for genome in genomes_to_remove
         union!(sources_to_remove, genome.sources)
     end
-    for (_, targets) in values(ref.targets_by_name)
+    for (_, targets) in ref.targets
         filter!(targets) do (source, _)
             !in(source, sources_to_remove)
         end
@@ -219,9 +222,15 @@ function add_sequence!(ref::Reference, seq::Sequence, targets::Vector{Target})
     for (source, span) in targets
         add_sequence!(source, seq, span)
     end
-    if last(get!(ref.targets_by_name, seq.name, (seq, targets))) !== targets
+    L = length(ref.target_index_by_name)
+    if L == typemax(UInt32)
+        error("References can only hold 4294967295 sequences")
+    end
+    i = get!(ref.target_index_by_name, seq.name, L + 1)
+    if i != L + 1
         error(lazy"Duplicate sequence in reference: $(seq.name)")
     end
+    push!(ref.targets, (seq, targets))
     ref
 end
 
@@ -231,7 +240,7 @@ function parse_bins(
     ref::Reference,
     binsplit_sep::Union{Nothing, AbstractString, Char}=nothing,
     disjoint::Bool=true,
-)::Dict{<:AbstractString, Vector{Sequence}}
+)::Dict{<:AbstractString, <:Vector{<:Integer}}
     lines = eachline(io)
     header = "clustername\tcontigname"
     it = iterate(lines)
@@ -240,16 +249,18 @@ function parse_bins(
     end
     itr = tab_pairs(lines)
     itr = isnothing(binsplit_sep) ? itr : binsplit_tab_pairs(itr, binsplit_sep)
-    seen_seqs = Set{Sequence}()
-    seqs_by_binname = Dict{String, Vector{Sequence}}()
-    for (binname, seqname) in itr
-        (seq, _) = ref.targets_by_name[seqname]
-        if disjoint && in!(seen_seqs, seq)
-            error(lazy"Sequence \"$(seq.name)\" seen twice in disjoint Binning")
+    seen_indices = falses(length(ref.targets))
+    idxs_by_binname = Dict{SubString{String}, Vector{UInt32}}()
+    @inbounds for (binname, seqname) in itr
+        i = ref.target_index_by_name[seqname]
+        if seen_indices[i]
+            name = first(ref.targers[i]).name
+            error(lazy"Sequence \"$(name)\" seen twice in disjoint Binning")
         end
-        push!(get!(valtype(seqs_by_binname), seqs_by_binname, binname), seq)
+        seen_indices[i] = true
+        push!(get!(valtype(idxs_by_binname), idxs_by_binname, binname), i)
     end
-    seqs_by_binname
+    idxs_by_binname
 end
 
 const JSON_VERSION = 1
@@ -339,7 +350,7 @@ function save(io::IO, ref::Reference)
             seq.name,
             seq.length,
             [(source.name, first(span), last(span)) for (source, span) in targets],
-        ) for (_, (seq, targets)) in ref.targets_by_name
+        ) for (seq, targets) in ref.targets
     ]
 
     # Taxmaps

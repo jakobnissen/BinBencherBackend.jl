@@ -60,7 +60,8 @@ end
 
 function test_is_same_reference(a::Reference, b::Reference)
     @test genomes(a) == genomes(b)
-    @test a.targets_by_name == b.targets_by_name
+    @test a.targets == b.targets
+    @test a.target_index_by_name == b.target_index_by_name
     @test nseqs(a) == nseqs(b)
     @test [[c.name for c in v] for v in a.clades] == [[c.name for c in v] for v in b.clades]
 end
