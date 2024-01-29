@@ -16,8 +16,8 @@ Genome(name::AbstractString) = Genome(name, FlagSet())
     Genome(name::AbstractString [flags::FlagSet])
 
 `Genome`s represent individual target genomes (organisms, plasmids, viruses etc),
-analogous to lowest-level clade that can be reconstructed.
-Conceptually, `Genome`s contain one or more `Source`s, and to a single parent `Clade`.
+and are conceptually the lowest-level clade that can be reconstructed.
+`Genome`s contain one or more `Source`s, and belong to a single parent `Clade`.
 They are identified uniquely among genomes by their name.
 
 A genome have a _genome size_, which is the sum of the length of all its sources.

@@ -32,8 +32,8 @@ This gives us a few statistics about the reference:
 * Length of shortest sequence
 * Total length of genomes that are assembled
 
-The genomes here contain both plasmids and organisms, and the sequence length of 200 bp is too short.
-Let's filter the reference using [`subset!`](@ref) to only retain organisms, and sequences of length 25 or more:
+The genomes here contain both plasmids and organisms.
+Let's filter the reference using [`subset!`](@ref) to only retain organisms, and sequences of length 10 or more:
 
 ```jldoctest walk
 julia> subset!(ref;

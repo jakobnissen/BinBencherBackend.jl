@@ -52,7 +52,9 @@ false
 ```
 """
 struct FlagSet <: AbstractSet{Flag}
-    # TODO: Use fewer bits?
+    # We can use fewer bits here, but this struct is currently
+    # used in Genome, which has 64-bit padding, so we might
+    # as well have the content be bits here instead of padding
     x::UInt64
 
     FlagSet(x::UInt64) = new(x)

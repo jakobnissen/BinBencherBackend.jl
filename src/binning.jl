@@ -197,7 +197,7 @@ function Binning(
     precisions=DEFAULT_PRECISIONS,
     filter_genomes::Function=Returns(true),
 )
-    seqs_by_binname = parse_bins(io, Dict, ref, binsplit_separator)
+    seqs_by_binname = parse_bins(io, Dict, ref, binsplit_separator, disjoint)
     filter!(seqs_by_binname) do (_, seqs)
         length(seqs) ≥ min_seqs && sum(length, seqs; init=0) ≥ min_size
     end
@@ -207,7 +207,8 @@ function Binning(
         (binname, seqs) in seqs_by_binname
     ]
     sort!(bins; by=i -> i.name)
-    Binning(bins, ref; recalls, precisions, disjoint, filter_genomes)
+    # We already checked for disjointedness when parsing bins, so we skip it here
+    Binning(bins, ref; recalls, precisions, disjoint=false, filter_genomes)
 end
 
 function Binning(
@@ -360,7 +361,7 @@ function benchmark(
         for (genome, (asmsize, foreign)) in bin.genomes
             !isnothing(considered_genomes) && genome ∉ considered_genomes && continue
             (v_asm, v_genome) = max_genome_recall_at_precision[genome]
-            precision = (asmsize) / (asmsize + foreign)
+            precision = asmsize / (asmsize + foreign)
             asm_recall = asmsize / genome.assembly_size
             genome_recall = asmsize / genome.genome_size
             # Find the index corresponding to the given precision. If the precision is lower than
@@ -413,10 +414,13 @@ function update_matrix!(
     v::Vector{<:AbstractFloat},
     recalls::Vector{Float64},
 )
+    # Since we iterate over increasing precisions, the recall_index must shrink
+    # or stay the same per iteration. So, we can reduce the search space
+    # at each iteration by modifying imax
+    imax = lastindex(recalls)
     for (precision_index, recall) in enumerate(v)
-        # TODO: By keeping track of the maximal recall index (which must shrink)
-        # we can reduce search space here, if performance critical
-        recall_index = searchsortedlast(recalls, recall)
+        recall_index = searchsortedlast(view(recalls, 1:imax), recall)
+        imax = min(recall_index, imax)
         matrix[1:recall_index, precision_index] .+= 1
     end
     matrix
