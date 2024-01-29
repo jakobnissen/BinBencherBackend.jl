@@ -47,6 +47,7 @@ See also: [`print_matrix`](@ref), [`Bin`](@ref), [`Reference`](@ref)
 ```jldoctest
 julia> bins = Binning(path_to_bins_file, ref);
 
+
 julia> bins isa Binning
 true
 
@@ -140,9 +141,9 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
         end
         print(io, "\n  Precisions: ", repr([round(i; digits=3) for i in x.precisions]))
         print(io, "\n  Recalls:    ", repr([round(i; digits=3) for i in x.recalls]))
-        print(io, "\n  Reconstruction (assemblies):\n")
+        print(io, "\n  Reconstruction (genomes):\n")
         seekstart(buf)
-        print_matrix(buf, x; level=0, assembly=true)
+        print_matrix(buf, x; level=0, assembly=false)
         seekstart(buf)
         for line in eachline(buf)
             println(io, "    ", line)
@@ -247,7 +248,7 @@ function recall_precision_indices(
 end
 
 """
-    print_matrix(::Binning; level=0, assembly=true)
+    print_matrix(::Binning; level=0, assembly=false)
 
 Print the number of reconstructed assemblies or genomes at the given taxonomic level (rank).
 Level 0 corresponds to genomes, level 1 to species, etc.
@@ -257,7 +258,7 @@ of reconstructed genomes.
 See also: [`Binning`](@ref)
 """
 print_matrix(x::Binning; kwargs...) = print_matrix(stdout, x; kwargs...)
-function print_matrix(io::IO, x::Binning; level::Integer=0, assembly::Bool=true)
+function print_matrix(io::IO, x::Binning; level::Integer=0, assembly::Bool=false)
     ms = assembly ? x.recovered_asms : x.recovered_genomes
     m = ms[level + 1]
     rnd(x) = string(round(x; digits=3))

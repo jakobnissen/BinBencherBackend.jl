@@ -29,6 +29,7 @@ gzip decompress when reading the file.
 ```jldoctest
 julia> ref = Reference(path_to_ref_file);
 
+
 julia> ref isa Reference
 true
 

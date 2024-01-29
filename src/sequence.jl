@@ -14,7 +14,7 @@ true
 
 julia> Sequence("abc", 0)
 ERROR: ArgumentError: Cannot instantiate an empty sequence
-```
+[...]
 """
 struct Sequence
     name::String
