@@ -187,7 +187,7 @@ Binning
   Mean bin assembly R/P/F1: 0.546 / 1.0 / 0.704
   Precisions: [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
   Recalls:    [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
-  Reconstruction (assemblies):
+  Reconstruction (genomes):
     P\R   0.6  0.7  0.8  0.9 0.95 0.99
     0.6     1    0    0    0    0    0
     0.7     1    0    0    0    0    0
@@ -260,7 +260,7 @@ julia> Set(intersecting(bin)) == genomes(ref)
 true
 
 julia> recall_precision(genome2, bin)
-(recall = 0.6122448979591837, precision = 1.0)
+(recall = 0.6, precision = 1.0)
 ```
 
 Or do the same for a higher clade - let's say a genus. In this case, we get the same result.
@@ -268,5 +268,5 @@ Or do the same for a higher clade - let's say a genus. In this case, we get the 
 julia> genus = only(Iterators.filter(i -> i.rank == 2, intersecting(Clade, bin)));
 
 julia> recall_precision(genus, bin)
-(recall = 0.6122448979591837, precision = 1.0)
+(recall = 0.6, precision = 1.0)
 ```

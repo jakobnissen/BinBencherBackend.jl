@@ -34,7 +34,7 @@ julia> first(bin.sequences)
 Sequence("s1", 25)
 
 julia> f1(first(ref.genomes), bin)
-0.625
+0.5714285714285715
 ```
 """
 struct Bin
@@ -219,7 +219,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Bin)
     end
 end
 
-function confusion_matrix(genome::Genome, bin::Bin; assembly::Bool=true)
+function confusion_matrix(genome::Genome, bin::Bin; assembly::Bool=false)
     (; asmsize, foreign) =
         get(bin.genomes, genome, (asmsize=0, total_bp=0, foreign=bin.breadth))
     fn = (assembly ? genome.assembly_size : genome.genome_size) - asmsize
@@ -238,8 +238,9 @@ See also: [`Bin`](@ref), [`Binning`](@ref)
 ```jldoctest
 julia> bingenome = only(intersecting(bin));
 
+
 julia> recall_precision(bingenome, bin)
-(recall = 0.45454545454545453, precision = 1.0)
+(recall = 0.4, precision = 1.0)
 
 julia> recall_precision(bingenome, bin; assembly=false)
 (recall = 0.4, precision = 1.0)
@@ -248,14 +249,14 @@ julia> recall_precision(bingenome.parent, bin; assembly=false)
 (recall = 0.4, precision = 1.0)
 ```
 """
-function recall_precision(genome::Genome, bin::Bin; assembly::Bool=true)
+function recall_precision(genome::Genome, bin::Bin; assembly::Bool=false)
     (tp, fp, fn) = confusion_matrix(genome, bin; assembly=assembly)
     recall = tp / (tp + fn)
     precision = tp / (tp + fp)
     (; recall, precision)
 end
 
-function recall_precision(clade::Clade{Genome}, bin::Bin; assembly::Bool=true)
+function recall_precision(clade::Clade{Genome}, bin::Bin; assembly::Bool=false)
     (; asm_recall, genome_recall, precision) =
         get(bin.clades, clade, (; asm_recall=0.0, genome_recall=0.0, precision=0.0))
     assembly ? (; recall=asm_recall, precision) : (; recall=genome_recall, precision)
@@ -267,13 +268,13 @@ function fscore(recall::Real, precision::Real, b::Real)
 end
 f1(recall::Real, precision::Real) = fscore(recall, precision, 1)
 
-function fscore(genome::Genome, bin::Bin, b::Real; assembly::Bool=true)
+function fscore(genome::Genome, bin::Bin, b::Real; assembly::Bool=false)
     (; recall, precision) = recall_precision(genome, bin; assembly)
     fscore(recall, precision, b)
 end
-f1(genome::Genome, bin::Bin; assembly::Bool=true) = fscore(genome, bin, 1; assembly)
+f1(genome::Genome, bin::Bin; assembly::Bool=false) = fscore(genome, bin, 1; assembly)
 
-function recalls_precisions(::Type{Genome}, bin::Bin; assembly::Bool=true)
+function recalls_precisions(::Type{Genome}, bin::Bin; assembly::Bool=false)
     bin.genomes |> imap() do (genome, (; asmsize, foreign))
         fn = (assembly ? genome.assembly_size : genome.genome_size) - asmsize
         recall = asmsize / (asmsize + fn)
@@ -282,20 +283,20 @@ function recalls_precisions(::Type{Genome}, bin::Bin; assembly::Bool=true)
     end
 end
 
-function recalls_precisions(::Type{<:Clade}, bin::Bin; assembly::Bool=true)
+function recalls_precisions(::Type{<:Clade}, bin::Bin; assembly::Bool=false)
     bin.clades |> imap() do (clade, (; asm_recall, genome_recall, precision))
         recall = assembly ? asm_recall : genome_recall
         (; clade, recall, precision)
     end
 end
 
-function recalls_precisions(bin::Bin; assembly::Bool=true)
+function recalls_precisions(bin::Bin; assembly::Bool=false)
     recalls_precisions(Genome, bin; assembly)
 end
 
 # TODO: Why does this function allocate?
 # Compute recall/precision of the genome with highest F1 for this bin
-function recall_prec_max_f1(bin::Bin; assembly::Bool=true)
+function recall_prec_max_f1(bin::Bin; assembly::Bool=false)
     (max_recall, max_precision, max_f1) = (0.0, 0.0, 0.0)
     for (; recall, precision) in recalls_precisions(bin; assembly)
         this_f1 = f1(recall, precision)
@@ -316,7 +317,7 @@ Computes if `bin` has an F1 score equal to, or higher than `threshold` for any g
 # Examples
 ```jldoctest
 julia> obs_f1 = f1(only(intersecting(bin)), bin)
-0.625
+0.5714285714285715
 
 julia> passes_f1(bin, obs_f1)
 true
@@ -325,7 +326,7 @@ julia> passes_f1(bin, obs_f1 + 0.001)
 false
 ```
 """
-function passes_f1(bin::Bin, threshold::Real; assembly::Bool=true)::Bool
+function passes_f1(bin::Bin, threshold::Real; assembly::Bool=false)
     any(recalls_precisions(Genome, bin; assembly)) do (; recall, precision)
         f1(recall, precision) ≥ threshold
     end
@@ -339,16 +340,16 @@ Computes if `bin` intersects with any `Genome` with at least the given recall an
 # Examples
 ```jldoctest
 julia> (r, p) = recall_precision(only(intersecting(bin)), bin)
-(recall = 0.45454545454545453, precision = 1.0)
+(recall = 0.4, precision = 1.0)
 
-julia> passes_recall_precision(bin, 0.45, 1.0)
+julia> passes_recall_precision(bin, 0.40, 1.0)
 true
 
-julia> passes_recall_precision(bin, 0.46, 1.0)
+julia> passes_recall_precision(bin, 0.41, 1.0)
 false
 ```
 """
-function passes_recall_precision(bin::Bin, rec::Real, prec::Real; assembly::Bool=true)::Bool
+function passes_recall_precision(bin::Bin, rec::Real, prec::Real; assembly::Bool=false)
     any(recalls_precisions(Genome, bin; assembly)) do (; recall, precision)
         recall ≥ rec && precision ≥ prec
     end

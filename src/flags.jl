@@ -44,6 +44,7 @@ See also: [`Flag`](@ref), [`Genome`](@ref)
 ```jldoctest
 julia> flags = FlagSet((Flags.organism, Flags.virus));
 
+
 julia> Flags.virus in flags
 true
 
