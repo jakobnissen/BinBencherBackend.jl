@@ -153,11 +153,11 @@ function subset!(
     ref = uninit!(ref)
     genomes_to_remove = Genome[]
     sources_to_remove = Set{Source}()
-    kept_seqs = BitVector(sequences(first(i)) for i in ref.targets)
-    keepat!(ref.targets, kept_seqs)
-    filter!(ref.target_index_by_name) do (_, v)
-        kept_seqs[v]
-    end
+    mask = BitVector(sequences(first(i)) for i in ref.targets)
+    new_idx = cumsum(mask)
+    keepat!(ref.targets, mask)
+    filter!(kv -> mask[last(kv)], ref.target_index_by_name)
+    map!(i -> new_idx[i], values(ref.target_index_by_name))
     filter!(ref.genomes) do g
         keep = genomes(g)::Bool
         keep || push!(genomes_to_remove, g)
@@ -254,7 +254,7 @@ function parse_bins(
     @inbounds for (binname, seqname) in itr
         i = ref.target_index_by_name[seqname]
         if seen_indices[i]
-            name = first(ref.targers[i]).name
+            name = first(ref.targets[i]).name
             error(lazy"Sequence \"$(name)\" seen twice in disjoint Binning")
         end
         seen_indices[i] = true

@@ -145,6 +145,14 @@ end
         top_clade(ref5).ngenomes + 1 ==
         top_clade(ref).ngenomes
     )
+
+    # Test subsetting preserves relationship between seq names and their targets
+    ref6 = deepcopy(ref)
+    trgs_of = Dict(name => ref6.targets[i] for (name, i) in ref6.target_index_by_name)
+    subset!(ref6; sequences=seq_pred)
+    @test all(ref6.target_index_by_name) do (name, i)
+        ref6.targets[i] === trgs_of[name]
+    end
 end
 
 function test_is_same_binning(a::Binning, b::Binning)
