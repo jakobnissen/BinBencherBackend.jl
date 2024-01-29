@@ -183,13 +183,14 @@ function subset!(
     finish!(ref)
 end
 
-# TODO: This deepcopy is quite slow, and it would be nice to optimise it.
+# This deepcopy is quite slow, and it would be nice to optimise it.
 # However, manual deepcopying of references is quite error prone, and having
-# an incomplete deepcopy could lead to nasty bugs, so I'll just eat it for now.
+# an incomplete deepcopy could lead to nasty bugs, so I'll just eat it.
 """
     subset(ref::Reference; kwargs...)
 
-Non-mutating copying version of `subset`.
+Non-mutating copying version of `subset!`.
+This is currently much slower than `subset!`.
 
 See also: [`subset!`](@ref)
 """
@@ -229,6 +230,7 @@ function parse_bins(
     ::Type{Dict},
     ref::Reference,
     binsplit_sep::Union{Nothing, AbstractString, Char}=nothing,
+    disjoint::Bool=true,
 )::Dict{<:AbstractString, Vector{Sequence}}
     lines = eachline(io)
     header = "clustername\tcontigname"
@@ -238,9 +240,13 @@ function parse_bins(
     end
     itr = tab_pairs(lines)
     itr = isnothing(binsplit_sep) ? itr : binsplit_tab_pairs(itr, binsplit_sep)
+    seen_seqs = Set{Sequence}()
     seqs_by_binname = Dict{String, Vector{Sequence}}()
     for (binname, seqname) in itr
         (seq, _) = ref.targets_by_name[seqname]
+        if disjoint && in!(seen_seqs, seq)
+            error(lazy"Sequence \"$(seq.name)\" seen twice in disjoint Binning")
+        end
         push!(get!(valtype(seqs_by_binname), seqs_by_binname, binname), seq)
     end
     seqs_by_binname

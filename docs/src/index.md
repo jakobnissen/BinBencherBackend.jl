@@ -1,11 +1,12 @@
 # BinBencherBackend
-BinBencherBackend.jl is a package for efficient benchmarking and interactive exploration of a set of bins against a reference.
+BinBencherBackend.jl is a package for efficient benchmarking and interactive exploration of a set of metagenomic assembled genomes (MAGs) against a reference.
+This is designed to be used for benchmarking metagenomic binners against a simulated metagenome.
 
 ## Installation
 * Install Julia - preferably using `juliaup`: https://github.com/JuliaLang/juliaup
 * Launch Julia: `julia`
 * Press `]` to enter package mode. You can exit package mode with backspace.
-* In package mode, type `add https://github.com/jakobnissen/BinBencherBackend.jl` to download and install the benchmarking software
+* In package mode, type `BinBencherBackend` to download and install the benchmarking software
 
 ## Quickstart
 ```julia

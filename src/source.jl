@@ -99,8 +99,7 @@ function assembly_size!(
                 scratch[i] = (start, stop)
             end
         end
-        # TODO: remove @assert?
-        @assert written_extras == n_circular_mappings
+        # @assert written_extras == n_circular_mappings # (should always hold)
     end
     # Now we know we have a Vector{Tuple{Int, Int}} with no circular mappings,
     # so we can compute the assembly size

@@ -60,16 +60,19 @@ function Bin(
     scratch::Vector{Tuple{Int, Int}},
 )
     # To make it work with arbitrary iterables of sequence
-    seqs = vec(collect(sequences))::Vector{Sequence}
-    mapping_breadth =
-        sum(length(s) for s in seqs if !isempty(last(targets[s.name])); init=0)
+    seqs = vector(sequences)::Vector{Sequence}
 
     # Which sequences map to the given genome, ints in bitset is indices into `seqs`.
     genome_mapping = Dict{Genome, BitSet}()
     source_mapping = Dict{Source{Genome}, Vector{Tuple{Int, Int}}}()
-    for (i, seq) in enumerate(seqs), (source, span) in last(targets[seq.name])
-        push!(get!(valtype(genome_mapping), genome_mapping, source.genome), i)
-        push!(get!(valtype(source_mapping), source_mapping, source), span)
+    mapping_breadth = 0
+    for (i, seq) in enumerate(seqs)
+        seq_targets = last(targets[seq.name])
+        isempty(seq_targets) || (mapping_breadth += length(seq))
+        for (source, span) in seq_targets
+            push!(get!(valtype(genome_mapping), genome_mapping, source.genome), i)
+            push!(get!(valtype(source_mapping), source_mapping, source), span)
+        end
     end
     genomes = Dict{Genome, @NamedTuple{asmsize::Int, foreign::Int}}()
     # Set `foreign`, which we can compute simply by knowing which sequences map to the genomes
