@@ -1,5 +1,5 @@
 """
-    Bin(name::AbstractString, sequences, targets, scratch)
+    Bin(name::AbstractString, ref::Reference, sequences)
 
 `Bin`s each represent a bin created by the binner. Conceptually, they are simply
 a set of `Sequence` with a name attached.
@@ -53,21 +53,32 @@ struct Bin
     breadth::Int
 end
 
+# Note: This constructor is user-facing. We use the more efficient
+# `bin_by_indices` when constructing Bins in practise
 function Bin(
     name::AbstractString,
-    sequences,
-    targets::Dict{String, Tuple{Sequence, Vector{Target}}},
+    ref::Reference,
+    sequences, # iterator of Sequence
+)
+    indices = [ref.target_index_by_name[s.name] for s in sequences]
+    scratch = Vector{Tuple{Int, Int}}()
+    bin_by_indices(name, indices, ref.targers, scratch)
+end
+
+function bin_by_indices(
+    name::AbstractString,
+    seq_indices::Vector{<:Integer},
+    targets::Vector{Tuple{Sequence, Vector{Target}}},
     scratch::Vector{Tuple{Int, Int}},
 )
-    # To make it work with arbitrary iterables of sequence
-    seqs = vector(sequences)::Vector{Sequence}
+    seqs = [first(targets[i]) for i in seq_indices]
 
     # Which sequences map to the given genome, ints in bitset is indices into `seqs`.
     genome_mapping = Dict{Genome, BitSet}()
     source_mapping = Dict{Source{Genome}, Vector{Tuple{Int, Int}}}()
     mapping_breadth = 0
-    for (i, seq) in enumerate(seqs)
-        seq_targets = last(targets[seq.name])
+    for (i, (seq, idx)) in enumerate(zip(seqs, seq_indices))
+        seq_targets = last(targets[idx])
         isempty(seq_targets) || (mapping_breadth += length(seq))
         for (source, span) in seq_targets
             push!(get!(valtype(genome_mapping), genome_mapping, source.genome), i)
@@ -147,7 +158,7 @@ function Bin(
             (; asm_recall=asm_recall, genome_recall=genome_recall, precision=precision)
     end
     breadth = sum(seqs |> imap(length); init=0)
-    Bin(String(name), sequences, genomes, clades, breadth)
+    Bin(String(name), seqs, genomes, clades, breadth)
 end
 
 nseqs(x::Bin) = length(x.sequences)

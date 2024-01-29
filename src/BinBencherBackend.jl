@@ -13,8 +13,8 @@ include("sequence.jl")
 include("source.jl")
 include("clade.jl")
 include("genome.jl")
-include("bin.jl")
 include("reference.jl")
+include("bin.jl")
 include("binning.jl")
 
 vector(x)::Vector = x isa Vector ? x : vec(collect(x))::Vector

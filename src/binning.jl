@@ -186,6 +186,9 @@ function Binning(path::AbstractString, ref::Reference; kwargs...)
     open_perhaps_gzipped(io -> Binning(io, ref; kwargs...), String(path))
 end
 
+# This is the most common constructor in practice, because we usually load binnings from files,
+# and also the most efficient. I immediately convert the sequences to integers for faster
+# processing, then convert back to seqs before instantiating the bins.
 function Binning(
     io::IO,
     ref::Reference;
@@ -197,14 +200,15 @@ function Binning(
     precisions=DEFAULT_PRECISIONS,
     filter_genomes::Function=Returns(true),
 )
-    seqs_by_binname = parse_bins(io, Dict, ref, binsplit_separator, disjoint)
-    filter!(seqs_by_binname) do (_, seqs)
-        length(seqs) ≥ min_seqs && sum(length, seqs; init=0) ≥ min_size
+    idxs_by_binname = parse_bins(io, Dict, ref, binsplit_separator, disjoint)
+    filter!(idxs_by_binname) do (_, idxs)
+        length(idxs) ≥ min_seqs &&
+            sum((length(first(ref.targets[i])) for i in idxs); init=0) ≥ min_size
     end
     scratch = Tuple{Int, Int}[]
     bins = [
-        Bin(binname, seqs, ref.targets_by_name, scratch) for
-        (binname, seqs) in seqs_by_binname
+        bin_by_indices(binname, seq_idxs, ref.targets, scratch) for
+        (binname, seq_idxs) in idxs_by_binname
     ]
     sort!(bins; by=i -> i.name)
     # We already checked for disjointedness when parsing bins, so we skip it here
@@ -260,13 +264,7 @@ function gold_standard(
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS,
 )::Binning
-    gold_standard(
-        ref,
-        (first(v) for v in values(ref.targets_by_name));
-        disjoint,
-        recalls,
-        precisions,
-    )
+    gold_standard(ref, (first(v) for v in ref.targets); disjoint, recalls, precisions)
 end
 
 function gold_standard(
@@ -289,7 +287,7 @@ function gold_standard(
 )::Binning
     sequences_of_genome = Dict{Genome, Set{Sequence}}()
     for sequence::Sequence in sequences
-        targets = last(ref.targets_by_name[sequence.name])
+        targets = last(ref.targets[ref.target_index_by_name[sequence.name]])
         isempty(targets) && continue
         best_index = disjoint ? last(findmax(i -> length(last(i)), targets)) : 0
         for (i, (source, _)) in enumerate(targets)
@@ -302,8 +300,12 @@ function gold_standard(
     end
     scratch = Tuple{Int, Int}[]
     bins = [
-        Bin("bin_" * genome.name, collect(seqs), ref.targets_by_name, scratch) for
-        (genome, seqs) in sequences_of_genome
+        bin_by_indices(
+            "bin_" * genome.name,
+            [ref.target_index_by_name[i.name] for i in seqs],
+            ref.targets,
+            scratch,
+        ) for (genome, seqs) in sequences_of_genome
     ]
     sort!(bins; by=i -> i.name)
     Binning(bins, ref; recalls=recalls, precisions=precisions, disjoint=false)
