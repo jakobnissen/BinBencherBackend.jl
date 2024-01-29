@@ -7,7 +7,7 @@ Reference
   Sequences:  11
   Ranks:      3
   Seq length: 10
-  Assembled:  61.9 %</code></pre><p>This gives us a few statistics about the reference:</p><ul><li>Number of genomes</li><li>Number of sequences</li><li>Number of taxonomic ranks (strain, species, genus...)</li><li>Length of shortest sequence</li><li>Total length of genomes that are assembled</li></ul><p>The genomes here contain both plasmids and organisms, and the sequence length of 200 bp is too short. Let&#39;s filter the reference using <a href="../reference/#BinBencherBackend.subset!-Tuple{Reference}"><code>subset!</code></a> to only retain organisms, and sequences of length 25 or more:</p><pre><code class="language-julia-repl hljs">julia&gt; subset!(ref;
+  Assembled:  61.9 %</code></pre><p>This gives us a few statistics about the reference:</p><ul><li>Number of genomes</li><li>Number of sequences</li><li>Number of taxonomic ranks (strain, species, genus...)</li><li>Length of shortest sequence</li><li>Total length of genomes that are assembled</li></ul><p>The genomes here contain both plasmids and organisms. Let&#39;s filter the reference using <a href="../reference/#BinBencherBackend.subset!-Tuple{Reference}"><code>subset!</code></a> to only retain organisms, and sequences of length 10 or more:</p><pre><code class="language-julia-repl hljs">julia&gt; subset!(ref;
            genomes = is_organism,
            sequences = s -&gt; length(s) &gt;= 10
        )
@@ -70,7 +70,7 @@ Binning
   NC genomes:  0
   Precisions: [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
   Recalls:    [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
-  Reconstruction (assemblies):
+  Reconstruction (genomes):
     P\R   0.6  0.7  0.8  0.9 0.95 0.99
     0.6     1    0    0    0    0    0
     0.7     1    0    0    0    0    0
@@ -100,7 +100,7 @@ Bin &quot;C4&quot;
 true
 
 julia&gt; recall_precision(genome2, bin)
-(recall = 0.6122448979591837, precision = 1.0)</code></pre><p>Or do the same for a higher clade - let&#39;s say a genus. In this case, we get the same result.</p><pre><code class="language-julia-repl hljs">julia&gt; genus = only(Iterators.filter(i -&gt; i.rank == 2, intersecting(Clade, bin)));
+(recall = 0.6, precision = 1.0)</code></pre><p>Or do the same for a higher clade - let&#39;s say a genus. In this case, we get the same result.</p><pre><code class="language-julia-repl hljs">julia&gt; genus = only(Iterators.filter(i -&gt; i.rank == 2, intersecting(Clade, bin)));
 
 julia&gt; recall_precision(genus, bin)
-(recall = 0.6122448979591837, precision = 1.0)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../reference/">Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Thursday 25 January 2024 11:32">Thursday 25 January 2024</span>. Using Julia version 1.10.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+(recall = 0.6, precision = 1.0)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../reference/">Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Monday 29 January 2024 09:44">Monday 29 January 2024</span>. Using Julia version 1.10.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
