@@ -151,18 +151,27 @@ function subset!(
     genomes::Function=Returns(true),
 )::Reference
     ref = uninit!(ref)
+
+    # Cache the sequences and genomes to remove in order to not
+    # need to compute the predicates multiple times
     genomes_to_remove = Genome[]
     sources_to_remove = Set{Source}()
+
+    # Update both ref.targets and ref.target_index_by_name
     mask = BitVector(sequences(first(i)) for i in ref.targets)
     new_idx = cumsum(mask)
     keepat!(ref.targets, mask)
     filter!(kv -> mask[last(kv)], ref.target_index_by_name)
     map!(i -> new_idx[i], values(ref.target_index_by_name))
+
+    # Populate genomes_to_remove and remove the genomes from ref.genomes
     filter!(ref.genomes) do g
         keep = genomes(g)::Bool
         keep || push!(genomes_to_remove, g)
         keep
     end
+
+    # Compute sources to remove, and remove the sources from ref.targets
     for genome in genomes_to_remove
         union!(sources_to_remove, genome.sources)
     end
@@ -171,18 +180,28 @@ function subset!(
             !in(source, sources_to_remove)
         end
     end
+
+    # Remove references to deleted genomes from parents
+    # (and recursively remove now-empty Clades)
     for genome in genomes_to_remove
         recursively_delete_child!(genome)
     end
+
+    # Remove references to Clades we deleted from the Clade tree,
+    # but which may still be present in ref.clades
     for i in (length(ref.clades) - 1):-1:1
         empty!(ref.clades[i])
         for parent in ref.clades[i + 1]
             union!(ref.clades[i], parent.children::Vector{Clade{Genome}})
         end
     end
+
+    # Remove sequences from sources
     for genome in ref.genomes, source in genome.sources
         filter!(i -> sequences(first(i))::Bool, source.sequences)
     end
+
+    # Re-initialize the now completely filtered Reference
     finish!(ref)
 end
 

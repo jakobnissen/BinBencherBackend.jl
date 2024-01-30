@@ -114,12 +114,22 @@ function add_child!(c::Clade{Genome}, g::Node)::Clade
     c
 end
 
+"Delete a child from the clade tree."
 function recursively_delete_child!(child::T) where {T <: Node}
     parent = child.parent
+    # If the child is the top level clade, do nothing, as we delete from the bottom up
     parent === nothing && return nothing
     children = parent.children::Vector{T}
     deleteat!(children, findfirst(i -> i === child, children)::Integer)
-    parent.ngenomes -= 1
+    # If we delete a genome, we remove that genome from all ancestors count
+    if child isa Genome
+        p = parent
+        while p !== nothing
+            p.ngenomes -= 1
+            p = p.parent
+        end
+    end
+    # If the clade now has no children, we can delete the clade
     isempty(children) && recursively_delete_child!(parent)
 end
 
