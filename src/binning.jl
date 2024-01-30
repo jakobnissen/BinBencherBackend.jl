@@ -1,6 +1,33 @@
 const DEFAULT_RECALLS = (0.6, 0.7, 0.8, 0.9, 0.95, 0.99)
 const DEFAULT_PRECISIONS = (0.6, 0.7, 0.8, 0.9, 0.95, 0.99)
 
+struct BinStats
+    # Recall and precision are computed by pairing each bin
+    # with the Genome that yields the highest F1 score
+    mean_bin_recall::Float64
+    mean_bin_precision::Float64
+    mean_bin_f1::Float64
+end
+
+function BinStats(bins::Vector{Bin}; assembly::Bool=true)
+    (mean_bin_recall, mean_bin_precision, mean_bin_f1) =
+        mean_bin_recall_prec(bins; assembly)
+    BinStats(mean_bin_recall, mean_bin_precision, mean_bin_f1)
+end
+
+function mean_bin_recall_prec(bins::Vector{Bin}; assembly::Bool=true)
+    (recall_sum, prec_sum, f1_sum, nbins) = foldl(
+        Iterators.filter(
+            !isnothing,
+            Iterators.map(b -> recall_prec_max_f1(b; assembly), bins),
+        );
+        init=(0.0, 0.0, 0.0, 0),
+    ) do (recall_sum, prec_sum, f1_sum, nbins), (; recall, precision)
+        (recall_sum + recall, prec_sum + precision, f1_sum + f1(recall, precision), nbins + 1)
+    end
+    (recall_sum / nbins, prec_sum / nbins, f1_sum / nbins)
+end
+
 """
     Binning(::Union{IO, AbstractString}, ::Reference; kwargs...)
 
@@ -61,6 +88,8 @@ struct Binning
     recovered_genomes::Vector{Matrix{Int}}
     recalls::Vector{Float64}
     precisions::Vector{Float64}
+    bin_asm_stats::BinStats
+    bin_genome_stats::BinStats
 end
 
 function Base.show(io::IO, x::Binning)
@@ -87,6 +116,20 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
         nc = n_nc(x)
         if nc !== nothing
             print(io, "\n  NC genomes:  ", nc)
+        end
+        for (stats, name) in
+            [(x.bin_genome_stats, "genome  "), (x.bin_asm_stats, "assembly")]
+            print(
+                io,
+                "\n  Mean bin ",
+                name,
+                " R/P/F1: ",
+                round(stats.mean_bin_recall; digits=3),
+                " / ",
+                round(stats.mean_bin_precision; digits=3),
+                " / ",
+                round(stats.mean_bin_f1; digits=3),
+            )
         end
         print(io, "\n  Precisions: ", repr([round(i; digits=3) for i in x.precisions]))
         print(io, "\n  Recalls:    ", repr([round(i; digits=3) for i in x.recalls]))
@@ -232,9 +275,20 @@ function Binning(
     checked_precisions = validate_recall_precision(precisions)
     bins = vector(bins_)
     disjoint && check_disjoint(bins)
+    bin_asm_stats = BinStats(bins; assembly=true)
+    bin_genome_stats = BinStats(bins; assembly=false)
     (asm_matrices, genome_matrices) =
         benchmark(ref, bins, checked_recalls, checked_precisions; considered_genomes)
-    Binning(ref, bins, asm_matrices, genome_matrices, checked_recalls, checked_precisions)
+    Binning(
+        ref,
+        bins,
+        asm_matrices,
+        genome_matrices,
+        checked_recalls,
+        checked_precisions,
+        bin_asm_stats,
+        bin_genome_stats,
+    )
 end
 
 """
