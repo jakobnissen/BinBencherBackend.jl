@@ -182,6 +182,8 @@ Binning
     Assembled:  91.3 %
   Bins:        6
   NC genomes:  0
+  Mean bin genome   R/P/F1: 0.62 / 0.929 / 0.701
+  Mean bin assembly R/P/F1: 0.653 / 0.932 / 0.733
   Precisions: [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
   Recalls:    [0.6, 0.7, 0.8, 0.9, 0.95, 0.99]
   Reconstruction (assemblies):

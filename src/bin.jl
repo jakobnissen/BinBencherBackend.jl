@@ -286,6 +286,23 @@ function recalls_precisions(bin::Bin; assembly::Bool=true)
     recalls_precisions(Genome, bin; assembly)
 end
 
+# TODO: Why does this function allocate?
+# Compute recall/precision of the genome with highest F1 for this bin
+function recall_prec_max_f1(bin::Bin; assembly::Bool=true)
+    peeled = Iterators.peel(recalls_precisions(bin; assembly))
+    # This can happen if the bin only contain sequences unassigned to any genome
+    isnothing(peeled) && return nothing
+    (; recall, precision), rest = peeled
+    (max_recall, max_precision, max_f1) = (recall, precision, f1(recall, precision))
+    for (; recall, precision) in rest
+        this_f1 = f1(recall, precision)
+        if this_f1 > max_f1
+            (max_f1, max_recall, max_precision) = (recall, precision, this_f1)
+        end
+    end
+    (; recall=max_recall, precision=max_precision)
+end
+
 """
     passes_f1(bin::Bin, threshold::Real; assembly::Bool=false)::Bool
 
@@ -303,7 +320,7 @@ julia> passes_f1(bin, obs_f1 + 0.001)
 false
 ```
 """
-function passes_f1(bin::Bin, threshold::Real; assembly::Bool=true)
+function passes_f1(bin::Bin, threshold::Real; assembly::Bool=true)::Bool
     any(recalls_precisions(Genome, bin; assembly)) do (; recall, precision)
         f1(recall, precision) ≥ threshold
     end
@@ -326,7 +343,7 @@ julia> passes_recall_precision(bin, 0.46, 1.0)
 false
 ```
 """
-function passes_recall_precision(bin::Bin, rec::Real, prec::Real; assembly::Bool=true)
+function passes_recall_precision(bin::Bin, rec::Real, prec::Real; assembly::Bool=true)::Bool
     any(recalls_precisions(Genome, bin; assembly)) do (; recall, precision)
         recall ≥ rec && precision ≥ prec
     end
