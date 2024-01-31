@@ -11,6 +11,11 @@ CLUSTERS_STR = read(CLUSTERS_PATH, String)
 @assert isdir(DIR)
 ngenomes(ref) = length(genomes(ref))
 
+@testset "Misc" begin
+    @test isnan(f1(0.0, 0.0))
+    @test !isnan(f1(1e-6, 1e-6))
+end
+
 @testset "Flags" begin
     empt = FlagSet()
     a = FlagSet([Flags.organism, Flags.plasmid])
@@ -209,10 +214,10 @@ end
     bins2 = Binning(CLUSTERS_PATH, ref)
     test_is_same_binning(bins, bins2)
 
-    @test bins.bin_genome_stats.mean_bin_recall ≈ 0.5796363636363636
-    @test bins.bin_genome_stats.mean_bin_precision ≈ 0.9435897435897436
-    @test bins.bin_asm_stats.mean_bin_recall ≈ 0.7224489795918367
-    @test bins.bin_asm_stats.mean_bin_precision ≈ 0.9454545454545455
+    @test bins.bin_genome_stats.mean_bin_recall ≈ 0.4916363636363636
+    @test bins.bin_genome_stats.mean_bin_precision ≈ 1
+    @test bins.bin_asm_stats.mean_bin_recall ≈ 0.636734693877551
+    @test bins.bin_asm_stats.mean_bin_precision ≈ 1
 end
 
 @testset "Gold standard" begin
