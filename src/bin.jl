@@ -249,14 +249,9 @@ function recall_precision(clade::Clade{Genome}, bin::Bin; assembly::Bool=true)
     assembly ? (; recall=asm_recall, precision) : (; recall=genome_recall, precision)
 end
 
+# NB: Returns NaN if recall and precision is zero
 function fscore(recall::Real, precision::Real, b::Real)
-    # Some people say the Fscore is undefined in this case.
-    # We define it to be 0.0
-    if iszero(recall + precision)
-        zero(float(recall))
-    else
-        (1 + b^2) * (recall * precision) / ((b^2 * precision) + recall)
-    end
+    (1 + b^2) * (recall * precision) / ((b^2 * precision) + recall)
 end
 f1(recall::Real, precision::Real) = fscore(recall, precision, 1)
 
@@ -289,18 +284,16 @@ end
 # TODO: Why does this function allocate?
 # Compute recall/precision of the genome with highest F1 for this bin
 function recall_prec_max_f1(bin::Bin; assembly::Bool=true)
-    peeled = Iterators.peel(recalls_precisions(bin; assembly))
-    # This can happen if the bin only contain sequences unassigned to any genome
-    isnothing(peeled) && return nothing
-    (; recall, precision), rest = peeled
-    (max_recall, max_precision, max_f1) = (recall, precision, f1(recall, precision))
-    for (; recall, precision) in rest
+    (max_recall, max_precision, max_f1) = (0.0, 0.0, 0.0)
+    for (; recall, precision) in recalls_precisions(bin; assembly)
         this_f1 = f1(recall, precision)
         if this_f1 > max_f1
-            (max_f1, max_recall, max_precision) = (recall, precision, this_f1)
+            (max_recall, max_precision, max_f1) = (recall, precision, this_f1)
         end
     end
-    (; recall=max_recall, precision=max_precision)
+    # This can happen if the bin only contain sequences unassigned to any genome
+    # in which case recalls_precisions returns an iterable with zero elements
+    iszero(max_f1) ? nothing : (; recall=max_recall, precision=max_precision)
 end
 
 """

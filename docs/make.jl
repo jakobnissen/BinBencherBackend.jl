@@ -27,6 +27,7 @@ makedocs(;
         "Reference" => "reference.md",
     ],
     checkdocs=:all,
+    # doctest = :fix,
 )
 
 deploydocs(; repo="github.com/jakobnissen/BinBencherBackend.jl.git", push_preview=true)
