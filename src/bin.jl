@@ -59,10 +59,11 @@ function Bin(
     name::AbstractString,
     ref::Reference,
     sequences, # iterator of Sequence
+    considered_genomes::Union{Nothing, Set{Genome}}=nothing,
 )
     indices = [ref.target_index_by_name[s.name] for s in sequences]
     scratch = Vector{Tuple{Int, Int}}()
-    bin_by_indices(name, indices, ref.targets, scratch)
+    bin_by_indices(name, indices, ref.targets, scratch, considered_genomes)
 end
 
 function bin_by_indices(
@@ -70,6 +71,7 @@ function bin_by_indices(
     seq_indices::Vector{<:Integer},
     targets::Vector{Tuple{Sequence, Vector{Target}}},
     scratch::Vector{Tuple{Int, Int}},
+    considered_genomes::Union{Nothing, Set{Genome}},
 )
     seqs = [first(targets[i]) for i in seq_indices]
 
@@ -81,7 +83,9 @@ function bin_by_indices(
         seq_targets = last(targets[idx])
         isempty(seq_targets) || (mapping_breadth += length(seq))
         for (source, span) in seq_targets
-            push!(get!(valtype(genome_mapping), genome_mapping, source.genome), i)
+            genome = source.genome
+            !isnothing(considered_genomes) && !in(genome, considered_genomes) && continue
+            push!(get!(valtype(genome_mapping), genome_mapping, genome), i)
             push!(get!(valtype(source_mapping), source_mapping, source), span)
         end
     end
