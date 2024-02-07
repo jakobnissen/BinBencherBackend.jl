@@ -62,7 +62,7 @@ function Bin(
 )
     indices = [ref.target_index_by_name[s.name] for s in sequences]
     scratch = Vector{Tuple{Int, Int}}()
-    bin_by_indices(name, indices, ref.targers, scratch)
+    bin_by_indices(name, indices, ref.targets, scratch)
 end
 
 function bin_by_indices(

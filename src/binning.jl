@@ -483,7 +483,7 @@ function update_matrix!(
 end
 
 function make_reverse_cumulative!(v::Vector{<:Real})
-    for i in (length(v) - 1):-1:1
+    @inbounds for i in (length(v) - 1):-1:1
         v[i] = max(v[i], v[i + 1])
     end
     v
