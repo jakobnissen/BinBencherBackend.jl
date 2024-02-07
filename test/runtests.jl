@@ -206,10 +206,16 @@ end
     # Test filter_genomes works
     empty_binning = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes=Returns(false))
     @test n_recovered(empty_binning, 0.1, 0.1) == 0
+    @test all(m -> all(iszero, m), empty_binning.recovered_asms)
+    @test all(m -> all(iszero, m), empty_binning.recovered_genomes)
 
     only_virus = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes=is_virus)
     @test BinBencherBackend.n_nc(only_virus) == 0
     @test n_recovered(only_virus, 0.1, 0.1; assembly=true) == 1
+
+    # This test depends on the exact state of the ref and binning used
+    @test all(m -> all(isone, m), only_virus.recovered_asms)
+    @test all(m -> all(iszero, m), only_virus.recovered_genomes)
 
     bins2 = Binning(CLUSTERS_PATH, ref)
     test_is_same_binning(bins, bins2)

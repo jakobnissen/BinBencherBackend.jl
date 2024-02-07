@@ -249,13 +249,18 @@ function Binning(
             sum((length(first(ref.targets[i])) for i in idxs); init=0) ≥ min_size
     end
     scratch = Tuple{Int, Int}[]
+    considered_genomes = if filter_genomes === Returns(true)
+        nothing
+    else
+        Set(g for g in genomes(ref) if filter_genomes(g))
+    end
     bins = [
-        bin_by_indices(binname, seq_idxs, ref.targets, scratch) for
+        bin_by_indices(binname, seq_idxs, ref.targets, scratch, considered_genomes) for
         (binname, seq_idxs) in idxs_by_binname
     ]
     sort!(bins; by=i -> i.name)
     # We already checked for disjointedness when parsing bins, so we skip it here
-    Binning(bins, ref; recalls, precisions, disjoint=false, filter_genomes)
+    Binning(bins, ref; recalls, precisions, disjoint=false)
 end
 
 function Binning(
@@ -264,13 +269,7 @@ function Binning(
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS,
     disjoint::Bool=true,
-    filter_genomes::Function=Returns(true),
 )
-    considered_genomes = if filter_genomes === Returns(true)
-        nothing
-    else
-        Set(g for g in genomes(ref) if filter_genomes(g))
-    end
     checked_recalls = validate_recall_precision(recalls)
     checked_precisions = validate_recall_precision(precisions)
     bins = vector(bins_)
@@ -278,7 +277,7 @@ function Binning(
     bin_asm_stats = BinStats(bins; assembly=true)
     bin_genome_stats = BinStats(bins; assembly=false)
     (asm_matrices, genome_matrices) =
-        benchmark(ref, bins, checked_recalls, checked_precisions; considered_genomes)
+        benchmark(ref, bins, checked_recalls, checked_precisions)
     Binning(
         ref,
         bins,
@@ -359,6 +358,7 @@ function gold_standard(
             [ref.target_index_by_name[i.name] for i in seqs],
             ref.targets,
             scratch,
+            nothing,
         ) for (genome, seqs) in sequences_of_genome
     ]
     sort!(bins; by=i -> i.name)
@@ -394,7 +394,6 @@ function benchmark(
     bins::Vector{Bin},
     recalls::Vector{Float64},
     precisions::Vector{Float64};
-    considered_genomes::Union{Nothing, Set{Genome}}, # if nothing, consider all genomes
 )::NTuple{2, Vector{<:Matrix{<:Integer}}}
     # For each genome/clade, we compute the maximal recall at the given precision levels.
     # i.e. if 3rd element of vector is 0.5, it means that at precision precisions[3], this genome/clade
@@ -405,7 +404,6 @@ function benchmark(
         Dict{Clade{Genome}, Tuple{Vector{Float64}, Vector{Float64}}}()
     # Initialize with zeros for all known genomes/clades
     for genome in ref.genomes
-        !isnothing(considered_genomes) && genome ∉ considered_genomes && continue
         max_genome_recall_at_precision[genome] =
             (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
     end
@@ -415,7 +413,6 @@ function benchmark(
     end
     for bin in bins
         for (genome, (asmsize, foreign)) in bin.genomes
-            !isnothing(considered_genomes) && genome ∉ considered_genomes && continue
             (v_asm, v_genome) = max_genome_recall_at_precision[genome]
             precision = asmsize / (asmsize + foreign)
             asm_recall = asmsize / genome.assembly_size
