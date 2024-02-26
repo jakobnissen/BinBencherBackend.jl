@@ -226,6 +226,7 @@ function uninit!(ref::Reference)
         @uninit! genome.assembly_size
         for source in genome.sources
             @uninit! source.assembly_size
+            @uninit! source.total_bp
         end
     end
     ref

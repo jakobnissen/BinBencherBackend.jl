@@ -412,7 +412,7 @@ function benchmark(
             (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
     end
     for bin in bins
-        for (genome, (asmsize, foreign)) in bin.genomes
+        for (genome, (; asmsize, foreign)) in bin.genomes
             (v_asm, v_genome) = max_genome_recall_at_precision[genome]
             precision = asmsize / (asmsize + foreign)
             asm_recall = asmsize / genome.assembly_size
