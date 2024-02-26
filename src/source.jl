@@ -4,6 +4,7 @@
     const length::Int
     const sequences::Vector{Tuple{Sequence, Tuple{Int, Int}}}
     @lazy assembly_size::Int
+    @lazy total_bp::Int
 
     function Source(genome::G, name::AbstractString, length::Integer) where {G}
         length ≤ 0 && error("Source length must be at least 1")
@@ -12,6 +13,7 @@
             genome,
             Int(length),
             Vector{Tuple{Sequence, Tuple{Int, Int}}}(),
+            uninit,
             uninit,
         )
     end
@@ -51,13 +53,15 @@ end
 
 function finish!(source::Source, scratch::Vector{Tuple{Int, Int}})
     @isinit(source.assembly_size) && return source
-    asm_size = assembly_size!(last, scratch, source.sequences, source.length)
+    (asm_size, total_bp) = assembly_size!(last, scratch, source.sequences, source.length)
     @assert asm_size ≤ source.length
     @init! source.assembly_size = asm_size
+    @init! source.total_bp = total_bp
     source
 end
 
-"""Compute the number of positions in `v` covered at least once.
+"""Compute -> (breadth, total_bp), where breadth is the number of positions in `v` covered at least once,
+and total_bp the sum of the lengths of the sequences.
 `v` must be a `Vector` such that `all(by(i) isa Tuple{Integer, Integer} for i in v)`.
 The `scratch` input is mutated.
 """
@@ -66,7 +70,7 @@ function assembly_size!(
     scratch::Vector{Tuple{Int, Int}},
     v::Vector, # v: Vector of X, where by(X) isa Tuple{Integer, Integer}
     source_len::Int,
-)::Integer
+)::Tuple{Integer, Integer}
     # First pass: Convert elements into Tuple{Int, Int}, and count the number
     # of circularly mapping spans (i.e. spans mapping from the end of the source
     # to the beginning)
@@ -103,13 +107,13 @@ function assembly_size!(
     end
     # Now we know we have a Vector{Tuple{Int, Int}} with no circular mappings,
     # so we can compute the assembly size
-    size = 0
-    rightmost_end = 0
+    size = total_bp = rightmost_end = 0
     for span in sort!(scratch; by=first, alg=QuickSort)
         size += max(last(span), rightmost_end) - max(first(span) - 1, rightmost_end)
+        total_bp += last(span) - first(span) + 1
         rightmost_end = max(rightmost_end, last(span))
     end
-    size
+    (size, total_bp)
 end
 
 Base.show(io::IO, x::Source) = print(io, "Source(", x.name, ", ", x.length, ')')

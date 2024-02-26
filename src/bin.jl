@@ -42,7 +42,8 @@ struct Bin
     sequences::Vector{Sequence}
     # Asmsize: Bases covered by sequences in this bin.
     # Foreign: Sum of sequences mapping to other sequences, but not this genome
-    genomes::Dict{Genome, @NamedTuple{asmsize::Int, foreign::Int}}
+    # Total basepairs: Number of basepairs that map to the genome
+    genomes::Dict{Genome, @NamedTuple{asmsize::Int, total_bp::Int, foreign::Int}}
     # Recall is max recall of all children
     # Precision is (sum of length of mapping seqs) / breadth
     clades::Dict{
@@ -89,17 +90,23 @@ function bin_by_indices(
             push!(get!(valtype(source_mapping), source_mapping, source), span)
         end
     end
-    genomes = Dict{Genome, @NamedTuple{asmsize::Int, foreign::Int}}()
+    genomes = Dict{Genome, @NamedTuple{asmsize::Int, total_bp::Int, foreign::Int}}()
     # Set `foreign`, which we can compute simply by knowing which sequences map to the genomes
     for (genome, set) in genome_mapping
-        genomes[genome] =
-            (; asmsize=0, foreign=mapping_breadth - sum(i -> seqs[i].length, set; init=0))
+        genomes[genome] = (;
+            asmsize=0,
+            total_bp=0,
+            foreign=mapping_breadth - sum(i -> seqs[i].length, set; init=0),
+        )
     end
     # Incrementally update `asmsize`; we need to compute this on a per-source level
     for (source, spans) in source_mapping
-        (asmsize, foreign) = genomes[source.genome]
+        (; asmsize, total_bp, foreign) = genomes[source.genome]
+        (new_asmsize, new_total_bp) =
+            assembly_size!(identity, scratch, spans, source.length)
         genomes[source.genome] = (;
-            asmsize=asmsize + assembly_size!(identity, scratch, spans, source.length),
+            asmsize=asmsize + new_asmsize,
+            total_bp=total_bp + new_total_bp,
             foreign=foreign,
         )
     end
@@ -213,9 +220,10 @@ function Base.show(io::IO, ::MIME"text/plain", x::Bin)
 end
 
 function confusion_matrix(genome::Genome, bin::Bin; assembly::Bool=true)
-    (tp, fp) = get(bin.genomes, genome, (0, bin.breadth))
-    fn = (assembly ? genome.assembly_size : genome.genome_size) - tp
-    (tp, fp, fn)
+    (; asmsize, foreign) =
+        get(bin.genomes, genome, (asmsize=0, total_bp=0, foreign=bin.breadth))
+    fn = (assembly ? genome.assembly_size : genome.genome_size) - asmsize
+    (asmsize, foreign, fn)
 end
 
 """
