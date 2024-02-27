@@ -100,7 +100,7 @@ end
 function Base.show(io::IO, x::Binning)
     nc = n_nc(x)
     print(io, summary(x), '(')
-    if nc !== nothing
+    if nc isa Integer
         print(io, "NC = ", nc)
     end
     print(io, ')')
@@ -119,11 +119,12 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
         end
         print(io, "  Bins:        ", nbins(x))
         nc = n_nc(x)
-        if nc !== nothing
+        if nc isa Integer
             print(io, "\n  NC genomes:  ", nc)
         end
-        if last(x.recalls) ≥ 0.90 && last(x.precisions) ≥ 0.95
-            print(io, "\n  HQ bins:     ", n_passing_bins(x, 0.9, 0.95))
+        npb = n_passing_bins(x, 0.9, 0.95)
+        if npb isa Integer
+            print(io, "\n  HQ bins:     ", npb)
         end
         for (stats, name) in
             [(x.bin_genome_stats, "genome  "), (x.bin_asm_stats, "assembly")]
@@ -149,6 +150,13 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
             println(io, "    ", line)
         end
     end
+end
+
+struct RecallTooHigh end
+struct PrecisionTooHigh end
+struct RankOutOfRange end
+struct ThresholdError
+    x::Union{RecallTooHigh, PrecisionTooHigh, RankOutOfRange}
 end
 
 """
@@ -177,7 +185,7 @@ function n_recovered(
     precision::Real;
     level::Integer=0,
     assembly::Bool=false,
-)::Integer
+)::Union{Integer, ThresholdError}
     matrices = assembly ? binning.recovered_asms : binning.recovered_genomes
     extract_from_matrix(binning, recall, precision, matrices, level)
 end
@@ -198,7 +206,7 @@ julia> n_passing_bins(binning, 0.65, 0.71)
 0
 ```
 """
-function n_passing_bins(binning::Binning, recall::Real, precision::Real, level::Integer=0)
+function n_passing_bins(binning::Binning, recall::Real, precision::Real, level::Integer=0)::Union{Integer, ThresholdError}
     extract_from_matrix(binning, recall, precision, binning.quality_bins, level)
 end
 
@@ -208,12 +216,12 @@ function extract_from_matrix(
     precision::Real,
     matrices::Vector{<:Matrix},
     level::Integer=0,
-)
-    (ri, pi) = recall_precision_indices(binning, recall, precision)
+)::Union{Integer, ThresholdError}
+    inds = recall_precision_indices(binning, recall, precision)
+    inds isa ThresholdError && return inds
+    (ri, pi) = inds
     if level + 1 ∉ eachindex(matrices)
-        error(
-            lazy"Requested binning metric at taxonomic level $level but have only level 0:$(lastindex(matrices)-1)",
-        )
+        return ThresholdError(RankOutOfRange())
     end
     m = matrices[level + 1]
     m[pi, ri]
@@ -223,12 +231,11 @@ function recall_precision_indices(
     binning::Binning,
     recall::Real,
     precision::Real,
-)::Tuple{Int, Int}
+)::Union{Tuple{Int, Int}, ThresholdError}
     ri = searchsortedfirst(binning.recalls, recall)
-    ri > length(binning.recalls) && error("Binning did not benchmark at that high recall")
+    ri > length(binning.recalls) && return ThresholdError(RecallTooHigh())
     pi = searchsortedfirst(binning.precisions, precision)
-    pi > length(binning.precisions) &&
-        error("Binning did not benchmark at that high precision")
+    pi > length(binning.precisions) && return ThresholdError(PrecisionTooHigh())
     (ri, pi)
 end
 
@@ -263,12 +270,8 @@ function print_matrix(io::IO, x::Binning; level::Integer=0, assembly::Bool=true)
     end
 end
 
-function n_nc(x::Binning)::Union{Int, Nothing}
-    rec_i = findfirst(isequal(0.90), x.recalls)
-    rec_i === nothing && return nothing
-    prec_i = findfirst(isequal(0.95), x.precisions)
-    prec_i === nothing && return nothing
-    x.recovered_genomes[1][prec_i, rec_i]
+function n_nc(x::Binning)::Union{Int, ThresholdError}
+    extract_from_matrix(x, 0.9, 0.95, x.recovered_genomes, 0)
 end
 
 nbins(x::Binning) = length(x.bins)
