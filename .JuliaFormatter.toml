@@ -7,6 +7,6 @@ normalize_line_endings = "unix"
 separate_kwargs_with_semicolon = true
 whitespace_in_kwargs = false
 short_to_long_function_def = true
-long_to_short_function_def = true
+long_to_short_function_def = false
 conditional_to_if = true
 trailing_comma = true
