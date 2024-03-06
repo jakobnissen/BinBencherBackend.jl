@@ -209,7 +209,7 @@ julia> n_passing_bins(binning, 0.65, 0.71)
 function n_passing_bins(
     binning::Binning,
     recall::Real,
-    precision::Real,
+    precision::Real;
     level::Integer=0,
     assembly::Bool=false,
 )::Union{Integer, ThresholdError}
@@ -496,8 +496,10 @@ function benchmark(
 
     for bin in bins
         # Since we re-use these vectors for each bin, we need to zero them out between each iteration
-        for vs in (bin_max_genome_recall_at_precision, bin_max_asm_recall_at_precision), v in vs
-            fill!(v, zero(eltype(v)))
+        for vs in (bin_max_genome_recall_at_precision, bin_max_asm_recall_at_precision)
+            for v in vs
+                fill!(v, zero(eltype(v)))
+            end
         end
 
         # First, handle the genomes (as opposed to the clades)
@@ -645,8 +647,10 @@ function make_reverse_max!(v::Vector{<:Real})
     v
 end
 
-make_columnwise_reverse_cumulative!(m::Matrix{<:Real}) = for col in eachcol(m)
+function make_columnwise_reverse_cumulative!(m::Matrix{<:Real})
+    for col in eachcol(m)
         for i in (length(col) - 1):-1:1
             col[i] += col[i + 1]
         end
     end
+end
