@@ -87,10 +87,8 @@ struct Binning
     # TODO: Should these be a dense 3D tensor instead of a vector of matrices?
     recovered_asms::Vector{Matrix{Int}}
     recovered_genomes::Vector{Matrix{Int}}
-    # Quality bins is always relative to a whole genome, not an asm
-    # since I don't think it makes sense to compute e.g. a HQ bin
-    # relalative to the asm size
-    quality_bins::Vector{Matrix{Int}}
+    bin_asms::Vector{Matrix{Int}}
+    bin_genomes::Vector{Matrix{Int}}
     recalls::Vector{Float64}
     precisions::Vector{Float64}
     bin_asm_stats::BinStats
@@ -191,11 +189,13 @@ function n_recovered(
 end
 
 """
-    n_passing_bins(::Binning, recall, precision; level=0)::Integer
+    n_passing_bins(::Binning, recall, precision; level=0, assembly::Bool=false)::Integer
 
 Return the number of bins which correspond to any genome or clade at the given recall
 and precision levels.
-The argument `level` sets the taxonomic rank: 0 for `Genome`.
+If `assembly` is set, a recall of 1.0 means a bin corresponds to a whole assembly,
+else it corresponds to a whole genome.
+The argument `level` sets the taxonomic rank: 0 for `Genome` (or assemblies).
 
 # Examples
 ```jldoctest
@@ -206,8 +206,15 @@ julia> n_passing_bins(binning, 0.65, 0.71)
 0
 ```
 """
-function n_passing_bins(binning::Binning, recall::Real, precision::Real, level::Integer=0)::Union{Integer, ThresholdError}
-    extract_from_matrix(binning, recall, precision, binning.quality_bins, level)
+function n_passing_bins(
+    binning::Binning,
+    recall::Real,
+    precision::Real,
+    level::Integer=0,
+    assembly::Bool=false,
+)::Union{Integer, ThresholdError}
+    matrices = assembly ? binning.bin_asms : binning.bin_genomes
+    extract_from_matrix(binning, recall, precision, matrices, level)
 end
 
 function extract_from_matrix(
@@ -327,14 +334,15 @@ function Binning(
     disjoint && check_disjoint(bins)
     bin_asm_stats = BinStats(bins; assembly=true)
     bin_genome_stats = BinStats(bins; assembly=false)
-    (asm_matrices, genome_matrices, quality_bins) =
+    (asm_matrices, genome_matrices, bin_asms, bin_genomes) =
         benchmark(ref, bins, checked_recalls, checked_precisions)
     Binning(
         ref,
         bins,
         asm_matrices,
         genome_matrices,
-        quality_bins,
+        bin_asms,
+        bin_genomes,
         checked_recalls,
         checked_precisions,
         bin_asm_stats,
@@ -441,26 +449,26 @@ function validate_recall_precision(xs)::Vector{Float64}
     sort!(collect(s))
 end
 
+# TODO: This function is massive. Can I refactor it into smaller functions?
 function benchmark(
     ref::Reference,
     bins::Vector{Bin},
     recalls::Vector{Float64},
     precisions::Vector{Float64};
-)::NTuple{3, Vector{<:Matrix{<:Integer}}}
-    # For each genome/clade, we compute the maximal recall at the given precision levels.
-    # i.e. if 3rd element of vector is 0.5, it means that at precision precisions[3], this genome/clade
-    # is found with a maximal recall of 0.5.
-    # We keep two vectors: First for recovered assemblies, second for recovered genomes
+)::NTuple{4, Vector{<:Matrix{<:Integer}}}
+    # We have 8 qualitatively different combinations of the three options below:
+    # * 1) rank 0 (a Genome), versus 2) another rank (a Clade)
+    # * Counting 1) unique genomes/clades recovered at a r/p threshold level, or
+    #   2) bins corresponding to any genome/clade at a r/p level
+    # * With recall=1.0 defined as 1) The assembly size, or 2) the genome size
+
+    # We loop over bins below. So, to tally up recovered genomes/clades, we need to store
+    # them in a dict.
+    # Given N distinct precision values, we compute the maximally seen recall value at that
+    # given precision value. We could also have done it the other way.
     max_genome_recall_at_precision = Dict{Genome, Tuple{Vector{Float64}, Vector{Float64}}}()
     max_clade_recall_at_precision =
         Dict{Clade{Genome}, Tuple{Vector{Float64}, Vector{Float64}}}()
-    # This vector is used to tally up the BINS of a given quality for each clade
-    bin_max_recall_at_precision =
-        [Vector{Float64}(undef, length(precisions)) for _ in 1:nranks(ref)]
-    bin_qualities = [
-        zeros(Int, length(recalls), length(precisions)) for _ in bin_max_recall_at_precision
-    ]
-    # Initialize with zeros for all known genomes/clades
     for genome in ref.genomes
         max_genome_recall_at_precision[genome] =
             (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
@@ -469,62 +477,115 @@ function benchmark(
         max_clade_recall_at_precision[clade] =
             (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
     end
+
+    # Same as above, except that because we loop over bins, we can compute at each iteration
+    # whether the bin passes the threshold. So we don't need to store in a dict, but can
+    # increment the matrices directly at the end of the loop
+    bin_max_genome_recall_at_precision =
+        [Vector{Float64}(undef, length(precisions)) for _ in 1:nranks(ref)]
+    bin_max_asm_recall_at_precision =
+        [Vector{Float64}(undef, length(precisions)) for _ in 1:nranks(ref)]
+    bin_genome_matrices = [
+        zeros(Int, length(recalls), length(precisions)) for
+        _ in bin_max_genome_recall_at_precision
+    ]
+    bin_asm_matrices = [
+        zeros(Int, length(recalls), length(precisions)) for
+        _ in bin_max_genome_recall_at_precision
+    ]
+
     for bin in bins
-        for v in bin_max_recall_at_precision
+        # Since we re-use these vectors for each bin, we need to zero them out between each iteration
+        for vs in (bin_max_genome_recall_at_precision, bin_max_asm_recall_at_precision), v in vs
             fill!(v, zero(eltype(v)))
         end
-        genome_bin_recall = bin_max_recall_at_precision[1]
-        for (genome, (;asmsize, foreign)) in bin.genomes
+
+        # First, handle the genomes (as opposed to the clades)
+        bin_genome_recalls_1 = bin_max_genome_recall_at_precision[1]
+        bin_asm_recalls_1 = bin_max_asm_recall_at_precision[1]
+        for (genome, (; asmsize, foreign)) in bin.genomes
             (v_asm, v_genome) = max_genome_recall_at_precision[genome]
             precision = asmsize / (asmsize + foreign)
             asm_recall = asmsize / genome.assembly_size
             genome_recall = asmsize / genome.genome_size
+
             # Find the index corresponding to the given precision. If the precision is lower than
             # the smallest precision in `precisions`, don't do anything
             precision_index = searchsortedlast(precisions, precision)
             iszero(precision_index) && continue
-            genome_bin_recall[precision_index] =
-                max(genome_bin_recall[precision_index], genome_recall)
+
+            # Get maximum recalls for genomes
             v_asm[precision_index] = max(asm_recall, v_asm[precision_index])
             v_genome[precision_index] = max(genome_recall, v_genome[precision_index])
+
+            # Get maximum recalls for bins
+            bin_genome_recalls_1[precision_index] =
+                max(bin_genome_recalls_1[precision_index], genome_recall)
+            bin_asm_recalls_1[precision_index] =
+                max(bin_asm_recalls_1[precision_index], asm_recall)
         end
-        # Same as above, but for clades
-        for (clade, (asm_recall, genome_recall, precision)) in bin.clades
+
+        # Same as above, but for clades instead of genomes
+        for (clade, (asm_recall, clade_recall, precision)) in bin.clades
             precision_index = searchsortedlast(precisions, precision)
             iszero(precision_index) && continue
             (v_asm, v_genome) = max_clade_recall_at_precision[clade]
-            for (v, recall) in ((v_asm, asm_recall), (v_genome, genome_recall))
+
+            # Get maximum recall for clades
+            for (v, recall) in ((v_asm, asm_recall), (v_genome, clade_recall))
                 v[precision_index] = max(recall, v[precision_index])
             end
-            bin_max_recall_at_precision[clade.rank + 1][precision_index] = max(
-                bin_max_recall_at_precision[clade.rank + 1][precision_index],
-                genome_recall,
+
+            # Get maximum recall for bins
+            for (v, recall) in (
+                (bin_max_asm_recall_at_precision, asm_recall),
+                (bin_max_genome_recall_at_precision, clade_recall),
             )
+                vr = v[clade.rank + 1]
+                vr[precision_index] = max(vr[precision_index], recall)
+            end
         end
 
-        # Increment the number of bins at a given precision/recall level
-        for (v, m) in zip(bin_max_recall_at_precision, bin_qualities)
-            make_reverse_cumulative!(v)
-            for (precision_index, recall) in enumerate(v)
-                recall_index = searchsortedlast(recalls, recall)
-                iszero(recall_index) && continue
-                m[recall_index, precision_index] += 1
+        # Now that the maximal recall at given precisions for this bin has been filled out,
+        # we use the data to increment the correct row in the matrix.
+        for (vs, ms) in (
+            (bin_max_genome_recall_at_precision, bin_genome_matrices),
+            (bin_max_asm_recall_at_precision, bin_asm_matrices),
+        )
+            for (v, m) in zip(vs, ms)
+                # First, we make the recall vector reverse cumulative.
+                # If a bin was seen with recall 0.6 at precision 0.8, then it's also
+                # seen with at least recall 0.6 at every lower precision level
+                make_reverse_max!(v)
+
+                # Now, increment the correct (recall) row for each (precision) column.
+                # E.g. if a bin is seen at precision 0.5 with a recall of 0.6, we increment
+                # the corresponding rows/columns.
+                # Technically, we need to increment all recall values lower than the given
+                # recall value (by the same logic as the comment above),
+                # But we don't need to do this in the inner loop here. We can do it at the end
+                # where we only need to do it once for each matrix instead of once per bin per matrix.
+                for (precision_index, recall) in enumerate(v)
+                    recall_index = searchsortedlast(recalls, recall)
+                    iszero(recall_index) && continue
+                    m[recall_index, precision_index] += 1
+                end
             end
         end
     end
-    # Make all the vectors cumulative. I.e. if a genome is seen at precisions[3] with recall=0.6,
-    # then it's also seen at precisions[2] and precisions[1] with at least recall=0.6.
+
+    # Just like above with the bin vectors, we need to make the genome/clade vectors reverse max
     for (v1, v2) in values(max_genome_recall_at_precision)
-        make_reverse_cumulative!(v1)
-        make_reverse_cumulative!(v2)
+        make_reverse_max!(v1)
+        make_reverse_max!(v2)
     end
     for (v1, v2) in values(max_clade_recall_at_precision)
-        make_reverse_cumulative!(v1)
-        make_reverse_cumulative!(v2)
+        make_reverse_max!(v1)
+        make_reverse_max!(v2)
     end
-    # Now make the matrices. If at precision `precisions[3]`, we find a recall of 0.6,
-    # then we find the index in recalls that correspond to 0.6, say 4. Then, add 1 to all entries
-    # in the matrix[1:4, 3].
+
+    # Now make the matrices counting recovered genomes / clades. Similar to above for
+    # the bins, we increment the matrix at the correct recall value.
     asm_matrices = [zeros(Int, length(recalls), length(precisions)) for i in 1:nranks(ref)]
     genome_matrices = [copy(i) for i in asm_matrices]
     for (v_asm, v_genome) in values(max_genome_recall_at_precision)
@@ -537,24 +598,24 @@ function benchmark(
             update_matrix!(matrices[clade.rank + 1], v, recalls)
         end
     end
-    for (v, m) in zip(bin_max_recall_at_precision, bin_qualities)
-        update_matrix!(m, v, recalls)
+
+    # For all the matrices below, if a bin/genome/whatever is seen at recalls X and
+    # precision Y, then it's also seen at every lower value. The `make_reverse_max!` calls
+    # earlier updated the lower precision values with the recall values of the higher precision values.
+    # Now, we need to do the reverse - update the low recall values with prec. of high rec. values.
+    # We can do this once here, in the matrix.
+    for mv in (asm_matrices, genome_matrices, bin_genome_matrices, bin_asm_matrices),
+        m in mv
+
+        make_columnwise_reverse_cumulative!(m)
     end
 
-    # For any given precision, the counts in that recall column for the
-    # matrices are not cumulative, e.g. it may look like [0, 2, 1, 3]
-    # instead of [6, 6, 4, 3]. Make them cumulative
-    for mv in (asm_matrices, genome_matrices, bin_qualities)
-        for m in mv
-            for col in eachcol(m)
-                for i in (length(col) - 1):-1:1
-                    col[i] += col[i + 1]
-                end
-            end
-        end
-    end
-
-    map(v -> map(permutedims, v), (asm_matrices, genome_matrices, bin_qualities))
+    # For historical reasons, the matrices above are transposed.
+    # Instead of rewriting this massive function, simply transpose each matrix before returning
+    map(
+        v -> map(permutedims, v),
+        (asm_matrices, genome_matrices, bin_asm_matrices, bin_genome_matrices),
+    )
 end
 
 "For each precision column in the matrix, add one to the correct row
@@ -577,9 +638,15 @@ function update_matrix!(
     matrix
 end
 
-function make_reverse_cumulative!(v::Vector{<:Real})
+function make_reverse_max!(v::Vector{<:Real})
     @inbounds for i in (length(v) - 1):-1:1
         v[i] = max(v[i], v[i + 1])
     end
     v
 end
+
+make_columnwise_reverse_cumulative!(m::Matrix{<:Real}) = for col in eachcol(m)
+        for i in (length(col) - 1):-1:1
+            col[i] += col[i + 1]
+        end
+    end
