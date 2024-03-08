@@ -1,5 +1,5 @@
 {
-    "version": 1,
+    "version": 2,
     "taxmaps":[
         [["gA","D"],["gB","D"],["gC","E"]],
         [["D","F"],["E","F"]]

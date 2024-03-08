@@ -28,7 +28,7 @@ ifilter(f) = x -> Iterators.filter(f, x)
 
     @compile_workload begin
         ref = open(refpath) do io
-            Reference(io; min_seq_length=10)
+            Reference(io)
         end
         subset!(ref; sequences=Returns(true), genomes=Returns(true))
         gold_standard(ref)
@@ -37,7 +37,7 @@ ifilter(f) = x -> Iterators.filter(f, x)
         end
         print_matrix(IOBuffer(), bins)
         n_recovered(bins, 0.4, 0.2)
-        n_recovered(bins, 0.4, 0.2; assembly=true)
+        n_recovered(bins, 0.4, 0.2; assembly=false)
         n_recovered(bins, 0.4, 0.2; level=1)
     end
 end
