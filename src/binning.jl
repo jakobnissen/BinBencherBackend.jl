@@ -353,53 +353,47 @@ end
 """
     gold_standard(
         ref::Reference
-        [sequences, an iterable of bins or Binning];
+        [sequences, a Binning or an iterable of Sequence];
         disjoint=true,
         recalls=DEFAULT_RECALLS,
         precisions=DEFAULT_PRECISIONS
     )::Binning
 
 Create the optimal `Binning` object given a `Reference`, by the optimal binning of
-`sequences`.
+the `Sequence`s in `sequences`.
 If `disjoint`, assign each sequence to only a single genome.
 
 If `sequences` is not passed, use all sequences in `ref`. If a `Binning` is passed,
 use all sequences in any of its bins. Else, pass an iterable of `Sequence`.
-The elements of `Sequence` must be unique.
 
-## Extended help
+# Extended help
 Currently, the `disjoint` option uses a simple greedy algorithm to assign
 sequences to genomes.
 """
-function gold_standard(
-    ref::Reference;
-    disjoint::Bool=true,
-    recalls=DEFAULT_RECALLS,
-    precisions=DEFAULT_PRECISIONS,
-)::Binning
-    gold_standard(ref, (first(v) for v in ref.targets); disjoint, recalls, precisions)
+function gold_standard(ref::Reference; kwargs...)::Binning
+    gold_standard(ref, Set(first(v) for v in ref.targets)::Set{Sequence}; kwargs...)
+end
+
+function gold_standard(ref::Reference, binning::Binning; kwargs...)::Binning
+    seqs::Set{Sequence} = reduce(binning.bins; init=Set{Sequence}()) do s, bin
+        union!(s, bin.sequences)
+    end
+    gold_standard(ref, seqs; kwargs...)
+end
+
+function gold_standard(ref::Reference, sequences; kwargs...)::Binning
+    gold_standard(ref, Set(sequences)::Set{Sequence}; kwargs...)
 end
 
 function gold_standard(
     ref::Reference,
-    binning::Binning;
-    disjoint::Bool=true,
-    recalls=DEFAULT_RECALLS,
-    precisions=DEFAULT_PRECISIONS,
-)::Binning
-    seqs = reduce((s, bin) -> union!(s, bin.sequences), binning.bins; init=Set{Sequence}())
-    gold_standard(ref, seqs; disjoint, recalls, precisions)
-end
-
-function gold_standard(
-    ref::Reference,
-    sequences; # Iterator of Sequence
+    sequences::Set{Sequence};
     disjoint::Bool=true,
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS,
 )::Binning
     sequences_of_genome = Dict{Genome, Set{Sequence}}()
-    for sequence::Sequence in sequences
+    for sequence in sequences
         targets = last(ref.targets[ref.target_index_by_name[sequence.name]])
         isempty(targets) && continue
         best_index = disjoint ? last(findmax(i -> length(last(i)), targets)) : 0
