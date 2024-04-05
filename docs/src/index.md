@@ -6,7 +6,7 @@ This is designed to be used for benchmarking metagenomic binners against a simul
 * Install Julia - preferably using `juliaup`: https://github.com/JuliaLang/juliaup
 * Launch Julia: `julia`
 * Press `]` to enter package mode. You can exit package mode with backspace.
-* In package mode, type `BinBencherBackend` to download and install the benchmarking software
+* In package mode, type `add BinBencherBackend` to download and install the benchmarking software
 
 ## Quickstart
 ```julia
