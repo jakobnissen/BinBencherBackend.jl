@@ -1,5 +1,16 @@
 using Test
-using BinBencherBackend
+using BinBencherBackend: BinBencherBackend,
+    FlagSet, Flag, Flags, 
+    Reference, Binning, Bin, Genome, Source, Sequence,
+    is_organism, is_virus,
+    mrca,
+    gold_standard, top_clade, genomes,
+    f1, recall_precision,
+    n_recovered,
+    nseqs,
+    nbins,
+    subset, subset!
+
 using CodecZlib: GzipCompressor
 
 const DIR = joinpath(dirname(dirname(pathof(BinBencherBackend))), "files")
