@@ -19,8 +19,8 @@ using BinBencherBackend:
     f1,
     recall_precision,
     n_recovered,
-    nseqs,
-    nbins,
+    n_seqs,
+    n_bins,
     subset,
     subset!
 
@@ -91,13 +91,13 @@ function test_is_same_reference(a::Reference, b::Reference)
     @test genomes(a) == genomes(b)
     @test a.targets == b.targets
     @test a.target_index_by_name == b.target_index_by_name
-    @test nseqs(a) == nseqs(b)
+    @test n_seqs(a) == n_seqs(b)
     @test [[c.name for c in v] for v in a.clades] == [[c.name for c in v] for v in b.clades]
 end
 
 @testset "Reference" begin
     @test length(genomes(ref)) == 3
-    @test nseqs(ref) == 11
+    @test n_seqs(ref) == 11
 
     buf = IOBuffer()
     BinBencherBackend.save(buf, ref)
@@ -165,8 +165,8 @@ end
         @test refs[i] !== refs[j]
     end
     @test (ngenomes(ref3) + 1 == ngenomes(ref) == ngenomes(ref4) + 1 == ngenomes(ref5) + 1)
-    @test (nseqs(ref2) == nseqs(ref4) == nseqs(ref5))
-    @test (nseqs(ref) == nseqs(ref3) != nseqs(ref2))
+    @test (n_seqs(ref2) == n_seqs(ref4) == n_seqs(ref5))
+    @test (n_seqs(ref) == n_seqs(ref3) != n_seqs(ref2))
 
     @test (
         top_clade(ref3).ngenomes + 1 ==
@@ -197,7 +197,7 @@ end
     bins = Binning(IOBuffer(CLUSTERS_STR), ref)
 
     @test bins isa Binning
-    @test nbins(bins) == 6
+    @test n_bins(bins) == 6
 
     @test n_recovered(bins, 0.4, 0.71) == 1
     @test n_recovered(bins, 0.4, 0.71; assembly=true) == 2
@@ -258,7 +258,7 @@ end
     ]
     for bins in gold_standards
         @test bins isa Binning
-        @test nbins(bins) == ngenomes(ref)
+        @test n_bins(bins) == ngenomes(ref)
     end
 end
 

@@ -36,7 +36,7 @@ true
 julia> length(genomes(ref))
 3
 
-julia> nseqs(ref)
+julia> n_seqs(ref)
 11
 
 julia> first(ref.genomes) isa Genome
@@ -69,7 +69,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Reference)
             "\n  Genomes:    ",
             length(genomes(x)),
             "\n  Sequences:  ",
-            nseqs(x),
+            n_seqs(x),
             "\n  Ranks:      ",
             nranks(x),
             "\n  Seq length: ",
@@ -83,7 +83,7 @@ end
 
 top_clade(x::Reference) = only(last(x.clades))
 genomes(x::Reference) = x.genomes
-nseqs(x::Reference) = length(x.targets)
+n_seqs(x::Reference) = length(x.targets)
 function nranks(x::Reference)
     isempty(x.genomes) && return 0
     length(x.clades) + 1

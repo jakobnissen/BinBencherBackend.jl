@@ -116,7 +116,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
         for line in eachline(buf)
             println(io, "  ", line)
         end
-        print(io, "  Bins:        ", nbins(x))
+        print(io, "  Bins:        ", n_bins(x))
         nc = n_nc(x)
         if nc isa Integer
             print(io, "\n  NC genomes:  ", nc)
@@ -282,7 +282,7 @@ function n_nc(x::Binning)::Union{Int, ThresholdError}
     extract_from_matrix(x, 0.9, 0.95, x.recovered_genomes, 0)
 end
 
-nbins(x::Binning) = length(x.bins)
+n_bins(x::Binning) = length(x.bins)
 
 function Binning(path::AbstractString, ref::Reference; kwargs...)
     open_perhaps_gzipped(io -> Binning(io, ref; kwargs...), String(path))
