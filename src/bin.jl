@@ -172,7 +172,7 @@ function bin_by_indices(
     Bin(String(name), seqs, genomes, clades, breadth)
 end
 
-nseqs(x::Bin) = length(x.sequences)
+n_seqs(x::Bin) = length(x.sequences)
 
 """
     intersecting([Genome, Clade]=Genome, x::Bin)
@@ -208,7 +208,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Bin)
             "Bin \"",
             x.name,
             "\"\n  Sequences: ",
-            nseqs(x),
+            n_seqs(x),
             "\n  Breadth:   ",
             x.breadth,
             "\n  Intersecting ",
