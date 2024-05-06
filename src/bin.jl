@@ -229,7 +229,7 @@ end
 """
     recall_precision(x::Union{Genome, Clade}, bin::Bin; assembly::Bool=true)
 
-Get the recall, precision as a 2-tuple of `Float64` for the given genome/bin pair.
+Get the recall, precision `NamedTuple` of `Float64` for the given genome/bin pair.
 See the docstring for `Bin` for how this is computed.
 
 See also: [`Bin`](@ref), [`Binning`](@ref)
