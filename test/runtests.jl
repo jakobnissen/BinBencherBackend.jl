@@ -1,15 +1,28 @@
 using Test
-using BinBencherBackend: BinBencherBackend,
-    FlagSet, Flag, Flags, 
-    Reference, Binning, Bin, Genome, Source, Sequence,
-    is_organism, is_virus,
+using BinBencherBackend:
+    BinBencherBackend,
+    FlagSet,
+    Flag,
+    Flags,
+    Reference,
+    Binning,
+    Bin,
+    Genome,
+    Source,
+    Sequence,
+    is_organism,
+    is_virus,
     mrca,
-    gold_standard, top_clade, genomes,
-    f1, recall_precision,
+    gold_standard,
+    top_clade,
+    genomes,
+    f1,
+    recall_precision,
     n_recovered,
     nseqs,
     nbins,
-    subset, subset!
+    subset,
+    subset!
 
 using CodecZlib: GzipCompressor
 

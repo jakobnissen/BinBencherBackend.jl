@@ -28,11 +28,11 @@ julia> top_clade(ref).children
 ```
 """
 mutable struct Clade{G}
-    name::String
-    rank::Int
+    const name::String
+    const rank::Int
+    const children::Union{Vector{Clade{G}}, Vector{G}}
     ngenomes::Int
     parent::Union{Clade{G}, Nothing}
-    children::Union{Vector{Clade{G}}, Vector{G}}
 
     function Clade(name::String, child::Union{Clade{G}, G}) where {G}
         (rank, ngenomes) = if child isa G
@@ -44,7 +44,7 @@ mutable struct Clade{G}
             parent === nothing || existing_parent_error(name, child.name, parent.name)
             (child.rank + 1, child.ngenomes)
         end
-        instance = new{G}(name, rank, ngenomes, nothing, [child])
+        instance = new{G}(name, rank, [child], ngenomes, nothing)
         child.parent = instance
         return instance
     end
