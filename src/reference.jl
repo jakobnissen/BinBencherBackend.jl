@@ -285,11 +285,33 @@ function parse_bins(
 end
 
 const JSON_VERSION = 2
-# [(name, flags, [(sourcename, length)])]
+
+# [(genome_name, flags, [(sourcename, length)...])...]
+# Where flags is the integer representation of Flag,
+# i.e. each bit from lowest to highest in the integer
+# represents one flag, in the order of definition
+# Example: A genome called "MyGenome" has one subject, "C1" of length 1000,
+# and is both a plasmid and a virus.
+# So: Flags are defined as: Organism = 1, virus = 2, plasmid = 4
+# virus + plasmid = 2 | 4 = 6
+# So: [("MyGenome", 6, [("C1", 1000)])]
 const GENOMES_JSON_T = Vector{Tuple{String, Int, Vector{Tuple{String, Int}}}}
-# [Sequence => sequence_length, [(subject, from, to)]]
+
+# [(sequence_name,  sequence_length, [(subject_name, from_position, to_position)...])...]
+# The positions are the 1-indexed starting and ending positions of where the 
+# sequence maps to in the subject.
+# If the sequence 'wraps' around the subject (i.e. subject is circular), then
+# you have from_position > to_position
+# Example: Seq S1C1 with length 25 maps to C1 at pos 995 to 19 (wrapping around)
+# [("S1C1", 25, [("C1", 995, 19)])]
 const SEQUENCES_JSON_T = Vector{Tuple{String, Int, Vector{Tuple{String, Int, Int}}}}
-# [[(child, parent)], [(parent, grandparent)] ...]
+
+# [[(child_name, parent_name)...], [(parent_name, grandparent_name)...] ...]
+# One inner vector per taxonomic rank.
+# Lowest level has genome name as the left element and the genome's parent as
+# the right element.
+# Example: Genomes G1 and G2 are both E. colis and are the only genomes:
+# [[("G1", "E. coli"), ("G2", "E. coli")], [("E. coli", "Escherichia")]] 
 const TAXMAPS_JSON_T = Vector{Vector{Tuple{String, String}}}
 
 struct ReferenceJSON
