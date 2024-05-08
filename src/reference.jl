@@ -285,11 +285,24 @@ function parse_bins(
 end
 
 const JSON_VERSION = 2
-# [(name, flags, [(sourcename, length)])]
+
+# [(genome_name, flags, [(sourcename, length)...])...]
+# Where flags is the integer representation of Flag,
+# i.e. each bit from lowest to highest in the integer
+# represents one flag, in the order of definition
 const GENOMES_JSON_T = Vector{Tuple{String, Int, Vector{Tuple{String, Int}}}}
-# [Sequence => sequence_length, [(subject, from, to)]]
+
+# [(sequence_name,  sequence_length, [(subject_name, from_position, to_position)...])...]
+# The positions are the 1-indexed starting and ending positions of where the 
+# sequence maps to in the subject.
+# If the sequence 'wraps' around the subject (i.e. subject is circular), then
+# you have from_position > to_position
 const SEQUENCES_JSON_T = Vector{Tuple{String, Int, Vector{Tuple{String, Int, Int}}}}
-# [[(child, parent)], [(parent, grandparent)] ...]
+
+# [[(child_name, parent_name)...], [(parent_name, grandparent_name)...] ...]
+# One inner vector per taxonomic rank.
+# Lowest level has genome name as the left element and the genome's parent as
+# the right element.
 const TAXMAPS_JSON_T = Vector{Vector{Tuple{String, String}}}
 
 struct ReferenceJSON
