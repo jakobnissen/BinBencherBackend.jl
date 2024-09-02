@@ -421,7 +421,7 @@ function gold_standard(
 end
 
 function check_disjoint(bins)
-    nseq = sum(i -> length(i.sequences), bins; init=0)
+    nseq = sum(n_seqs, bins; init=0)
     seen_seqs = sizehint!(Set{Sequence}(), nseq)
     for bin in bins, seq in bin.sequences
         in!(seen_seqs, seq) &&

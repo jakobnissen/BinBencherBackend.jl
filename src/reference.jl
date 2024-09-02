@@ -265,7 +265,7 @@ function parse_bins(
     lines = eachline(io)
     header = "clustername\tcontigname"
     it = iterate(lines)
-    if (isnothing(it) ? nothing : rstrip(first(it))) != header
+    if (isnothing(it) ? nothing : first(it)) != header
         error(lazy"Expected following header line in cluster file: $(repr(header))")
     end
     itr = tab_pairs(lines)

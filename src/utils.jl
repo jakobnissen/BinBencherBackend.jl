@@ -2,15 +2,12 @@ struct Unsafe end
 const unsafe = Unsafe()
 
 function tab_pairs(lines)
-    lines |>
-    imap(strip) |>
-    ifilter(!isempty) |>
-    imap() do line
+    enumerate(lines) |> imap() do (line_no, line)
         cu = codeunits(line)
         t1 = findfirst(isequal(UInt8('\t')), cu)
-        t1 === nothing && error(lazy"No tabs in line $line")
+        t1 === nothing && error(lazy"No tabs in line number $line_no")
         t2 = findnext(isequal(UInt8('\t')), cu, t1 + 1)
-        t2 === nothing || error(lazy"More than two tab-sep fields in $line")
+        t2 === nothing || error(lazy"More than two tab-sep fields in line number $line_no")
         f1 = SubString(line, 1:prevind(line, t1))
         f2 = SubString(line, (t1 + 1):lastindex(line))
         (f1, f2)
