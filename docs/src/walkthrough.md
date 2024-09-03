@@ -9,7 +9,7 @@ DocTestSetup = quote
 end
 ```
 
-# Example walkthrough
+# BinBencherBackend.jl walkthrough
 
 ## Loading the reference
 First, let's load the reference:

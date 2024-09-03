@@ -19,12 +19,20 @@ end
 DocMeta.setdocmeta!(BinBencherBackend, :DocTestSetup, meta; recursive=true)
 
 makedocs(;
-    sitename="BinBencherBackend.jl",
+    sitename="BinBencher.jl",
     modules=[BinBencherBackend],
     pages=[
         "Home" => "index.md",
-        "Walkthrough" => "walkthrough.md",
-        "Reference" => "reference.md",
+        "CLI interface" => [
+            "Overview" => "cli_overview.md",
+            "Benchmarking" => "benchmarking.md",
+            "Making a reference" => "make_ref.md",
+        ],
+        "Backend package" => [
+            "Overview" => "backend_overview.md",
+            "Walkthrough" => "walkthrough.md",
+            "API Reference" => "reference.md",
+        ],
     ],
     checkdocs=:all,
     # doctest = :fix,
