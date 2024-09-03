@@ -7,7 +7,14 @@
     @lazy assembly_size::Int
 
     function Genome(name::AbstractString, flags::FlagSet)
-        new(String(name), Set{Source{Genome}}(), flags, uninit, uninit, uninit)
+        new(
+            check_valid_identifier(String(name)),
+            Set{Source{Genome}}(),
+            flags,
+            uninit,
+            uninit,
+            uninit,
+        )
     end
 end
 Genome(name::AbstractString) = Genome(name, FlagSet())

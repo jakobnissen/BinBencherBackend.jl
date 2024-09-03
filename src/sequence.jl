@@ -21,12 +21,7 @@ struct Sequence
     length::Int
 
     function Sequence(name::AbstractString, length::Integer)
-        str = String(name)
-        if isempty(str) || isspace(first(str)) || isspace(last(str))
-            error(
-                lazy"Sequence name \"$(str)\" cannot be empty or have leading or trailing whitespace",
-            )
-        end
+        str = check_valid_identifier(String(name))
         length < 1 && throw(ArgumentError("Cannot instantiate an empty sequence"))
         new(str, Int(length))
     end

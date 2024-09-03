@@ -41,6 +41,30 @@ function open_perhaps_gzipped(f::Function, path::String)
     end
 end
 
+const BB_IDENTIFIER_MASK = let
+    u = UInt64(0)
+    for i in codeunits("\t\r\n")
+        i > 63 && error() # if this is the case, the bitmask will no longer work
+        u |= one(u) << i
+    end
+    u
+end
+
+function is_valid_bb_identifier(s::Union{String, SubString{String}})
+    is_valid = true
+    for i in codeunits(s)
+        is_valid &= iszero(BB_IDENTIFIER_MASK & (UInt64(1) << (i & 63))) | (i > 63)
+    end
+    is_valid
+end
+
+function check_valid_identifier(s::Union{String, SubString{String}})
+    if !is_valid_bb_identifier(s)
+        error(lazy"Invalid identifier containing \\t, \\r or \\n: \"$(s)\"")
+    end
+    s
+end
+
 # This function exists in order to be able to use a Set
 # to detect duplicates without hashing and indexing the Set
 # twice.

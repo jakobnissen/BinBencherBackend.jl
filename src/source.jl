@@ -9,7 +9,7 @@
     function Source(genome::G, name::AbstractString, length::Integer) where {G}
         length ≤ 0 && error("Source length must be at least 1")
         new{G}(
-            String(name),
+            check_valid_identifier(String(name)),
             genome,
             Int(length),
             Vector{Tuple{Sequence, Tuple{Int, Int}}}(),
