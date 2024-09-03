@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "description": "The Reference json object",
+  "required": [
+    "version",
+    "genomes",
+    "sequences",
+    "taxmaps"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "description": "The version of this reference. Any breaking changes in the reference format is indicated by incrementing the version. Currently, version 2 is used.",
+      "minimum": 2,
+      "maximum": 2
+    },
+    "genomes": {
+      "type": "array",
+      "description": "A list of genomes, each with a name, a set of flags, and a list of sources",
+      "items": {
+        "type": "array",
+        "description": "This corresponds to a single genome",
+        "prefixItems": [
+          {
+            "type": "string",
+            "description": "Name of genome",
+            "pattern": "^[^\t\r\n]*$"
+          },
+          {
+            "type": "integer",
+            "description": "This is a flag set, binary encoded. Each set bit means the genome matches a specific flag, which can be e.g. is_organism, is_circular, etc."
+          },
+          {
+            "type": "array",
+            "description": "The list of sources of this genome",
+            "items": {
+              "type": "array",
+              "description": "A source name and its length",
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "description": "Name of the source",
+                  "pattern": "^.*$"
+                },
+                {
+                  "type": "integer",
+                  "description": "Length of the source",
+                  "minimum": 1
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "sequences": {
+      "type": "array",
+      "description": "A list of all sequences (contigs) that can be binned. These each contain a name, a length, and a list of mapping positions (also called 'targets')",
+      "items": {
+        "type": "array",
+        "descriptions": "This corresponds to a single sequence",
+        "prefixItems": [
+          {
+            "type": "string",
+            "description": "name of sequence",
+            "pattern": "^[^\t\r\n]*$"
+          },
+          {
+            "type": "integer",
+            "description": "length of the sequence",
+            "minimum": 1
+          },
+          {
+            "type": "array",
+            "description": "A list of source positions it maps to. This may be empty. The source positions must be inside the span of 1 to the length of the source. If a sequence maps to the same source at multiple locations, these are two distinct entries in this array",
+            "items": {
+              "type": "array",
+              "description": "a source name and its start and end mapping positions",
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "description": "name of the source. This source must exist as the source of some genome in the same JSON file"
+                },
+                {
+                  "type": "integer",
+                  "description": "starting position, 1-indexed and inclusive. If the source is circular and the sequence maps across the break point, the starting position is higher than the end position. E.g. if the sequence maps to a circular 1 kbp source at the 301 genomic positions positions 900-200, then this is 900 and the next value is 200.",
+                  "minimum": 1
+                },
+                {
+                  "type": "integer",
+                  "description": "see above",
+                  "minimum": 1
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "taxmaps": {
+      "type": "array",
+      "description": "This lays out a simplified cladogram of all the genomes in the file, which must ultimately descend from a single common ancestor. This is a list of lists of tuples. The outer list has one entry per rank, from genomes to the top clade.",
+      "minContains": 1,
+      "items": {
+        "type": "array",
+        "description": "This level corresponds to a single taxonomic rank. The first of these arrays map genomes to the parent of genomes. The second maps those parents to their parents etc. At the final level, all ranks are mapped to the same name, which is the universal ancestor. At every rank, all the parent of the previous level must be present as children. At the first rank, the set of children must be the set of genomes listed in this file. No child can have multiple parents.",
+        "minContains": 1,
+        "items": {
+          "type": "array",
+          "description": "This is a 2-tuple with first the child name, then the parent name",
+          "prefixItems": [
+            {
+              "type": "string",
+              "description": "Name of child",
+              "pattern": "^[^\t\r\n]*$"
+            },
+            {
+              "type": "string",
+              "description": "Name of parent",
+              "pattern": "^[^\t\r\n]*$"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
