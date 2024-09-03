@@ -25,6 +25,8 @@ using BinBencherBackend:
     subset!
 
 using CodecZlib: GzipCompressor
+using JSONSchema: JSONSchema
+using JSON: JSON
 
 const DIR = joinpath(dirname(dirname(pathof(BinBencherBackend))), "files")
 REF_PATH = joinpath(DIR, "ref.json")
@@ -303,4 +305,9 @@ end
     @test C2.assembly_size == 21 + 20 + 21
 
     @test sources_by_name["subjC3"].assembly_size == 0
+
+    # Ref conforms to schema
+    schema = JSONSchema.Schema(String(open(read, joinpath(DIR, "schema.json"))))
+    ref_data = copy(JSON.parse(REF_STR))::Dict
+    @test isnothing(JSONSchema.validate(schema, ref_data))
 end
