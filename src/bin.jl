@@ -62,6 +62,7 @@ function Bin(
     sequences, # iterator of Sequence
     considered_genomes::Union{Nothing, Set{Genome}}=nothing,
 )
+    name = check_valid_identifier(String(name))
     indices = [ref.target_index_by_name[s.name] for s in sequences]
     scratch = Vector{Tuple{Int, Int}}()
     bin_by_indices(name, indices, ref.targets, scratch, considered_genomes)

@@ -35,6 +35,7 @@ mutable struct Clade{G}
     parent::Union{Clade{G}, Nothing}
 
     function Clade(name::String, child::Union{Clade{G}, G}) where {G}
+        check_valid_identifier(name)
         (rank, ngenomes) = if child isa G
             (@isinit(child.parent)) &&
                 existing_parent_error(name, child.name, child.parent.name)

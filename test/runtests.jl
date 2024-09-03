@@ -118,9 +118,15 @@ end
     @test_throws Exception Sequence("abc", -5)
 
     # Bad names
-    @test_throws Exception Sequence("", 5)
-    @test_throws Exception Sequence(" abc", 5)
-    @test_throws Exception Sequence("abc ", 5)
+    @test_throws Exception Sequence("a\tb", 5)
+    @test_throws Exception Sequence("a\rbc", 5)
+    @test_throws Exception Sequence("\n\n", 5)
+
+    # Ok names
+    @test Sequence("", 1) isa Sequence
+    @test Sequence("   ", 1) isa Sequence
+    @test Sequence("\0\v\f", 1) isa Sequence
+    @test Sequence("\xff\xff", 1) isa Sequence
 
     @test map(length, seqs) == [5, 6, 7]
     @test s1 == s3 # we might change this behaviour
@@ -135,6 +141,13 @@ end
     @test is_virus(gens[3])
     @test !is_organism(gens[3])
     @test !is_virus(gens[1])
+
+    for good_name in ["", "  ", "\xff\0\0"]
+        @test Genome(good_name) isa Genome
+    end
+    for bad_name in ["\r\n", "abc\na", "a\ta"]
+        @test_throws Exception Genome(bad_name)
+    end
 end
 
 @testset "Clade" begin
