@@ -1,8 +1,8 @@
 # [Benchmarking a binning](@id benchmarking)
 Benchmarking is done with by running `binbench bench` from command line.
-You will need the following two input files:
+You will need the following two input files (see [the section 'input files'](@ref input_files) for more info):
 
-1. A [reference JSON file](@ref references).
+1. A reference JSON file.
 2. Your bins in a two-column TSV file.
 
 Benchmarking is run with the following command:
@@ -35,7 +35,8 @@ $ binbench bench out_dir reference.json binning.tsv
   will throw an error if any sequences is detected in multiple bins.
 
 ### Output files
-* `log.txt`: The log file.
+* `log.txt`: The log file. Look here for errors.
+* `stats.json`: Some statistics on the overall binning, such as number of bins, number of sequences, and summary statistics of the bins.
 * `bins.json.gz`: This file contains _assembly recall_, _genomic recall_ and _precision_ for every bin,
   with every genome and clade that intersects with the bin (i.e. have nonzero recall).
 * `recovery.json`: This JSON file contains the keys `"precisions"` and `"recalls"` with the precision/recall
@@ -49,7 +50,7 @@ $ binbench bench out_dir reference.json binning.tsv
   The `*_genomic_*` matrices counts _genomic recall_, whereas the `*_asm_*` matrices count _asm recall_.
 
 ### Benchmarking multiple binnings in one go
-If you have several binnings, it's faster to benchmark them together.
+If you have several binnings, it's faster to benchmark them together, as the reference only needs to be loaded once.
 This can be done like so
 ```shell
 $ binbench bench out_dir reference.json bins1=binning_1.tsv bins2=binning_2.tsv

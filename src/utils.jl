@@ -60,7 +60,7 @@ end
 
 function check_valid_identifier(s::Union{String, SubString{String}})
     if !is_valid_bb_identifier(s)
-        error(lazy"Invalid identifier containing \\t, \\r or \\n: \"$(s)\"")
+        error(lazy"Invalid identifier containing \t, \r or \n: \"$(s)\"")
     end
     s
 end

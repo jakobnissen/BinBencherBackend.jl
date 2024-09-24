@@ -23,6 +23,8 @@ makedocs(;
     modules=[BinBencherBackend],
     pages=[
         "Home" => "index.md",
+        "Nomenclariture" => "nomenclariture.md",
+        "Input files" => "input_files.md",
         "CLI interface" => [
             "Overview" => "cli_overview.md",
             "Benchmarking" => "benchmarking.md",

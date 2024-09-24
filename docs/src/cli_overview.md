@@ -1,21 +1,11 @@
 # BinBencher.jl
 BinBencher.jl is the command-line interface (CLI) around the BinBencherBackend, a program used to benchmark the output of a metagenomic binning,
 where the ground truth is known.
-The CLI program also includes functionality to [create a reference JSON file](@ref references)
+The CLI program also includes functionality to [create a reference JSON file](@ref references).
 
-* See more details about the subcommands of BinBencher.jl by navigating the documentation menu on the left.
-* Learn about the input files in the [BinBencher overview page](@ref input_files).
+You can learn about the input files in the [relevant section of the documentation](@ref input_files).
 
-## Quickstart
-
-```shell
-$ # Make a reference JSON file
-$ binbench  binbench makeref ref_outdir --seq-mapping seq_mapping.tsv --seq-fasta contigs.fna \
---genome-directories organism=genomes --tax tax.tsv --tax-ncbi ncbi_out.tsv
-
-$ # Benchmark using the reference and a binning TSV file.
-$ binbench bench bench_outdir ref_outdir/reference.json binning.tsv
-```
+See more details about the subcommands of BinBencher.jl by navigating the documentation menu on the left.
 
 ## Installation of the CLI program
 1. Install the [Julia programming language](https://julialang.org/)
@@ -33,3 +23,14 @@ Add the `bin` folder to your PATH environmental variable to be able run to BinBe
     applications.
     There is [recent work to improve this](https://github.com/JuliaLang/Pkg.jl/pull/3772), so hopefully BinBencher will be easier
     to install and run by the time the work is done some time in 2025.
+
+## Quickstart
+
+```shell
+$ # Make a reference JSON file
+$ binbench makeref ref_outdir --seq-mapping seq_mapping.tsv --seq-fasta contigs.fna \
+--genome-directories organism=genomes --tax tax.tsv --tax-ncbi ncbi.tsv
+
+$ # Benchmark using the reference and a binning TSV file.
+$ binbench bench bench_outdir reference.json binning.tsv
+```
