@@ -16,3 +16,4 @@ ref =  Reference("files/ref.json")
 bins = Binning("files/clusters.tsv", ref)
 print_matrix(bins)
 ```
+
