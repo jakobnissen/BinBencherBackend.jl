@@ -68,7 +68,8 @@ open(file) do io
         disjoint::Bool=true,
         recalls=DEFAULT_RECALLS,
         precisions=DEFAULT_PRECISIONS,
-        filter_genomes=Returns(true)
+        filter_genomes=Returns(true),
+        filter_bins=Returns(true),
 )
 ```
 
@@ -80,6 +81,9 @@ open(file) do io
 * `recalls` and `precision`: The thresholds to benchmark with
 * `filter_genomes`: A function `f(genome)::Bool`. Genomes for which it returns
    `false` are ignored in benchmarking.
+* `filter_bins`: A function `f(bin)::Bool`. Bins for which it returns `false` are
+   removed from the `Binning`. This filter is applies after `min_size` and `min_seqs`
+   filter.
 """
 struct Binning
     ref::Reference
@@ -301,6 +305,7 @@ function Binning(
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS,
     filter_genomes::Function=Returns(true),
+    filter_bins::Function=Returns(true),
 )
     idxs_by_binname = parse_bins(io, Dict, ref, binsplit_separator, disjoint)
     filter!(idxs_by_binname) do (_, idxs)
@@ -317,21 +322,35 @@ function Binning(
         bin_by_indices(binname, seq_idxs, ref.targets, scratch, considered_genomes) for
         (binname, seq_idxs) in idxs_by_binname
     ]
-    sort!(bins; by=i -> i.name)
+    filter_bins === Returns(true) || filter!(filter_bins, bins)
     # We already checked for disjointedness when parsing bins, so we skip it here
     Binning(bins, ref; recalls, precisions, disjoint=false)
 end
 
+"""
+    Binning(bins::Vector{Bin}, ref::Reference; kwargs...)
+
+Create a `Binning` from a vector of `Bin`.
+The allowed keyword arguments are: `recalls`, `precisions`, `disjoint`,
+see the main docstring for `Binning` for their meaning.
+
+```jldoctest
+julia> binning = Binning([bin], ref);
+
+julia> n_bins(binning)
+1
+```
+"""
 function Binning(
-    bins_,
+    bins::Vector{Bin},
     ref::Reference;
     recalls=DEFAULT_RECALLS,
     precisions=DEFAULT_PRECISIONS,
     disjoint::Bool=true,
 )
+    sort!(bins; by=i -> i.name)
     checked_recalls = validate_recall_precision(recalls)
     checked_precisions = validate_recall_precision(precisions)
-    bins = vector(bins_)
     disjoint && check_disjoint(bins)
     bin_asm_stats = BinStats(bins; assembly=true)
     bin_genome_stats = BinStats(bins; assembly=false)

@@ -1,6 +1,35 @@
 """
-    Bin(name::AbstractString, ref::Reference, sequences)
+    Bin(
+        name::AbstractString,
+        ref::Reference,
+        sequences,
+        considered_genomes::Union{Set{Genome}, Nothing}=nothing
+    )
 
+Construct a bin from an iterable of `Sequence` from a `Reference`.
+
+If `considered_genomes` is not `nothing`, then any genomes not in the set will be ignored
+and so sequences mapping to those genomes will not count as contamination, and nor will
+the bin contain information about sequences mapping to those genomes.
+
+# Examples
+```jldoctest
+julia> bin = first(binning.bins)
+Bin "C1"
+  Sequences: 2
+  Breadth:   65
+  Intersecting 1 genome
+
+julia> first(bin.sequences)
+Sequence("s1", 25)
+
+julia> f1(first(ref.genomes), bin)
+0.5714285714285715
+```
+
+See also: [`Binning`](@ref), [`Genome`](@ref), [`Clade`](@ref)
+
+# Extended help
 `Bin`s each represent a bin created by the binner. Conceptually, they are simply
 a set of `Sequence` with a name attached.
 Practically, every `Bin` is benchmarked against all `Genome`s and `Clade`s of a given `Reference`,
@@ -19,23 +48,6 @@ or _genomes_ as the ground truth.
 For `Bin`/`Clade` pairs B/C, recall is the maximal recall of B/Ch for all children Ch of C.
 Precision is the sum of lengths of sequences mapping to any child of the clade divided
 by the sum of lengths of all sequences in the bin.
-
-See also: [`Binning`](@ref), [`Genome`](@ref), [`Clade`](@ref)
-
-# Examples
-```jldoctest
-julia> bin = first(binning.bins)
-Bin "C1"
-  Sequences: 2
-  Breadth:   65
-  Intersecting 1 genome
-
-julia> first(bin.sequences)
-Sequence("s1", 25)
-
-julia> f1(first(ref.genomes), bin)
-0.5714285714285715
-```
 """
 struct Bin
     name::String

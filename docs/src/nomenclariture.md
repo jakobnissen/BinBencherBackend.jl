@@ -17,8 +17,8 @@
   All genomes descend from a chain of exactly N ranks of clades, where N > 0.
 * A __bin__ is a set of sequences created by the binner. Every bin is benchmarked against all genomes and clades in the reference.
 * A __reference__ is composed of:
-    - The set of genomes__ to benchmark against,
-      which all ultimately descend from a single common clades that links all genomes together.
+    - The set of genomes to benchmark against,
+      which all ultimately descend from a single common clade.
     - Its set of sequences each with zero or more mappings to its genomes' sources.
 * A __binning__ is a set of bins benchmarked against a reference, where every bin is a subset of the reference's sequences.
 
