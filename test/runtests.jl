@@ -10,6 +10,8 @@ using BinBencherBackend:
     Genome,
     Source,
     Sequence,
+    ancestors,
+    descends_from,
     is_organism,
     is_virus,
     mrca,
@@ -154,16 +156,50 @@ end
 
 @testset "Clade" begin
     (gA, gB, gC) = sort!(collect(genomes(ref)); by=i -> i.name)
+    D = gA.parent
+    @test D === gB.parent
+    E = gC.parent
+    F = D.parent
+    @test F === E.parent
 
-    @test mrca(gA, gB).name == "D"
-    @test mrca(gA, gC).name == mrca(gB, gC).name == "F"
+    @testset "MRCA" begin
+        @test mrca(gA, gB).name == "D"
+        @test mrca(gA, gC).name == mrca(gB, gC).name == "F"
 
-    D = mrca(gA, gB)
-    @test mrca(gA, D) === D
+        @test mrca(gA, gB) === D
+        @test mrca(gA, D) === D
 
-    F = mrca(D, mrca(gA, gC))
-    @test mrca(F, F) == F
-    @test mrca(gA, F) == F
+        @test mrca(D, mrca(gA, gC)) === F
+        @test mrca(F, F) === F
+        @test mrca(gA, F) === F
+    end
+
+    @testset "Ancestors" begin
+        @test collect(ancestors(gA)) == [D, F]
+        @test collect(ancestors(gA)) == collect(ancestors(gB))
+        @test only(ancestors(D)) === F
+        @test isempty(collect(ancestors(F)))
+        @test collect(ancestors(gC)) == [E, F]
+        @test only(ancestors(E)) === F
+        @test isempty(ancestors(F))
+    end
+
+    @testset "Descends from" begin
+        lineages = Any[[gA, D, F], [gB, D, F], [gC, E, F]]
+        for i in lineages
+            for j in eachindex(i)
+                for k in j:lastindex(i)
+                    @test descends_from(i[j], i[k])
+                    if k > j
+                        @test !descends_from(i[k], i[j])
+                    end
+                end
+            end
+        end
+    end
+    @test !descends_from(gA, gB)
+    @test !descends_from(gA, E)
+    @test !descends_from(E, gB)
 end
 
 @testset "Subsetting" begin

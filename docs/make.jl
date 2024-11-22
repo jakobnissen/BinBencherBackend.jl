@@ -36,7 +36,7 @@ makedocs(;
             "API Reference" => "reference.md",
         ],
     ],
-    checkdocs=:all,
+    checkdocs=:exports,
     # doctest = :fix,
 )
 

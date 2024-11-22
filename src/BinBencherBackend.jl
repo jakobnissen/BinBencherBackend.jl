@@ -70,8 +70,11 @@ export Sequence,
     f1,
     passes_f1,
     passes_recall_precision,
+    recalls_precisions,
     fscore,
     mrca,
+    ancestors,
+    descends_from,
     print_matrix
 
 end # module
