@@ -303,11 +303,28 @@ function recalls_precisions(::Type{<:Clade}, bin::Bin; assembly::Bool=false)
     end
 end
 
+"""
+    recalls_precisions([::Type{T}], bin::Bin; assembly::Bool=false)
+
+Return an iterator of objects `s`, where:
+* `s.clade` or `s.genome` is a clade/genome that `bin` maps to
+* `s.recall::Float64` is the recall of the bin+genome/clade pair
+* `s.precision::Float64` is the precision of the bin+genome/clade pair
+
+The `assembly` keyword controls if `s.recall` is assembly or genomic recall.
+`T` can be `Genome` or `Clade`, and defaults to `Genome` if not passed.
+The precise type of the yielded elements is an implementation detail.
+
+# Examples
+```jldoctest
+julia> only((s.recall, s.precision) for s in recalls_precisions(bin))
+(0.4, 1.0)
+```
+"""
 function recalls_precisions(bin::Bin; assembly::Bool=false)
     recalls_precisions(Genome, bin; assembly)
 end
 
-# TODO: Why does this function allocate?
 # Compute recall/precision of the genome with highest F1 for this bin
 function recall_prec_max_f1(bin::Bin; assembly::Bool=false)
     (max_recall, max_precision, max_f1) = (0.0, 0.0, 0.0)

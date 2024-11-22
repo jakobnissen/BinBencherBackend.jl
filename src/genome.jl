@@ -217,3 +217,81 @@ function mrca(a::Node, b::Node)::Node
     end
     lo
 end
+
+"""
+    descends_from(child, ancestor) -> Bool
+
+Check if `child` descends from `ancestor`.
+Also returns `true` if `child` and `ancestor` is identical.
+Boths arguments must be a `Union{Genome, Clade}`.
+
+# Examples
+```
+julia> descends_from(genome, genome.parent)
+true
+
+julia> descends_from(genome, genome)
+true
+
+julia> descends_from(genome.parent, genome)
+false
+```
+"""
+function descends_from(child::Node, ancestor::Node)::Bool
+    child === ancestor && return true
+    ancestor isa Genome && return false
+    for anc in ancestors(child)
+        anc.rank > ancestor.rank && return false
+        anc === ancestor && return true
+    end
+    false
+end
+
+# The design here is awkward: Do we store the next clade to emit,
+# or the child? If the child, then it's Union{Genome, Clade}, if
+# the next clade, it's Union{Clade, Nothing}.
+# We instead store first clade to emit, and a bool telling if it's
+# empty (i.e. it began at the top clade)
+struct AncestorIterator
+    start::Clade{Genome}
+    empty::Bool
+end
+
+# We could actually precompute the length, if we got a reference
+# to the Reference object. But we don't have that object at hand,
+# and this is unlikely to be performance critical
+Base.IteratorSize(::Type{AncestorIterator}) = Base.SizeUnknown()
+
+Base.eltype(::Type{AncestorIterator}) = Clade{Genome}
+
+"""
+    ancestors(x::Union{Genome, Clade})
+
+Return an iterator of the ancestors of `x`. The first element will be `x`'s
+parent, the next element its grandparent etc.
+All elements of the iterator are `Clade{Genome}`.
+
+# Examples
+```jldoctest
+julia> count(Returns(true), ancestors(genome))
+2
+
+julia> println([i.name for i in ancestors(genome)])
+["D", "F"]
+```
+"""
+ancestors(child::Genome) = AncestorIterator(child.parent, false)
+
+function ancestors(child::Clade{Genome})
+    next = child.parent
+    isnothing(next) ? AncestorIterator(child, true) : AncestorIterator(next, false)
+end
+
+# The state is essentially a Union{Clade, Nothing}, but I want the state
+# to be a concrete type
+function Base.iterate(it::AncestorIterator, state=(it.start, it.empty))
+    (next, is_empty) = state
+    is_empty && return nothing
+    parent = next.parent
+    (next, (isnothing(parent) ? (next, true) : (parent, false)))
+end
