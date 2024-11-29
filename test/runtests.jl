@@ -8,6 +8,7 @@ using BinBencherBackend:
     Binning,
     Bin,
     Genome,
+    Clade,
     Source,
     Sequence,
     ancestors,
@@ -29,6 +30,8 @@ using BinBencherBackend:
 using CodecZlib: GzipCompressor
 using JSONSchema: JSONSchema
 using JSON: JSON
+
+include("sameref.jl")
 
 const DIR = joinpath(dirname(dirname(pathof(BinBencherBackend))), "files")
 REF_PATH = joinpath(DIR, "ref.json")
@@ -92,11 +95,7 @@ end
 end
 
 function test_is_same_reference(a::Reference, b::Reference)
-    @test genomes(a) == genomes(b)
-    @test a.targets == b.targets
-    @test a.target_index_by_name == b.target_index_by_name
-    @test n_seqs(a) == n_seqs(b)
-    @test [[c.name for c in v] for v in a.clades] == [[c.name for c in v] for v in b.clades]
+    @test test_is_same(a, b) === nothing
 end
 
 @testset "Reference" begin
