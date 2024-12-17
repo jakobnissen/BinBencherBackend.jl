@@ -312,19 +312,31 @@ function Binning(
         length(idxs) ≥ min_seqs &&
             sum((length(first(ref.targets[i])) for i in idxs); init=0) ≥ min_size
     end
-    scratch = Tuple{Int, Int}[]
-    considered_genomes = if filter_genomes === Returns(true)
-        nothing
-    else
-        Set(g for g in genomes(ref) if filter_genomes(g))
-    end
-    bins = [
-        bin_by_indices(binname, seq_idxs, ref.targets, scratch, considered_genomes) for
-        (binname, seq_idxs) in idxs_by_binname
-    ]
+    considered_genomes = _filter_genomes(filter_genomes, ref)
+    bins = _getbins(ref, considered_genomes, idxs_by_binname)
     filter_bins === Returns(true) || filter!(filter_bins, bins)
     # We already checked for disjointedness when parsing bins, so we skip it here
     Binning(bins, ref; recalls, precisions, disjoint=false)
+end
+
+function _filter_genomes(f::Function, ref::Reference)::Union{Nothing, Set{Genome}}
+    if f === Returns(true)
+        nothing
+    else
+        Set(g for g in genomes(ref) if f(g))
+    end
+end
+
+function _getbins(
+    ref::Reference,
+    considered_genomes::Union{Nothing, Set{Genome}},
+    idxs_by_binname::Dict{SubString{String}, Vector{UInt32}},
+)
+    scratch = Tuple{Int, Int}[]
+    [
+        bin_by_indices(binname, seq_idxs, ref.targets, scratch, considered_genomes)::Bin for
+        (binname, seq_idxs) in idxs_by_binname
+    ]
 end
 
 """
