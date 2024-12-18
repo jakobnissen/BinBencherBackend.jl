@@ -48,6 +48,16 @@ The genome `genome1` will have two sources `seq1` with length 4 and `seq2` with 
 The sequence (contig) names and lengths are obtained from reading a FASTA file with the sequences.
 
 The mapping position(s), if any, of each sequence is given by a 4-column TSV file with the sequence name, the source name, mapping start and mapping end (1-based, inclusive).
+This file must have the header `sequence\tsource\tstart\end`.
+
+If the source is circular, and sequence maps from the 3' end across the end of
+the source, and back to the 5' end, we call this a circular mapping.
+Circular mappings can be specified by having the `end` value be longer than the
+length of the source.
+
+For example, if a source has length 20, and a sequence is stated to map to it with
+start = 15 and end = 26, then it is interpreted as mapping from position 15, across the end
+and up to and including position (26 - 20 = 6) for a total of (26 - 15 + 1) = 12 positions.
 
 #### Example
 Given sequences `seq1`, `seq2` and `seq3`, and the following mapping file
@@ -56,14 +66,12 @@ sequence	source	start	end
 seq1	src1	4	9
 seq1	src1	11	15
 seq1	src2	1	6
-seq3	src3	15	7
+seq3	src3	15	26
 ```
-* `seq1` maps to three locations, two of which are in the same source. Note that the length of the spans (mapping end to start) need not be the same
+* `seq1` maps to three locations, two of which are in the same source.
+  Note that the length of the spans (mapping end to start) need not be the same
 * `seq2` is not present - it maps to nothing (or its mapping is unknown)
-* `seq3` maps exclusively to `src3`. Note that its mapping start is greater than its mapping end. This indicates that `src3` is circular,
-  and `seq3` maps across the breakpoint (origin) of the sequence
-
-Mapping locations use 1-based indexing and are inclusive.
+* `seq3` maps exclusively to `src3`.
 
 ## Taxonomy
 The taxonomy is specified with a 3-column TSV file with the header `rank\tchild\tparent`.

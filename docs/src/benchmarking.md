@@ -33,6 +33,7 @@ $ binbench bench out_dir reference.json binning.tsv
 * `--precisions`: See `--recalls`
 * `--intersect`: Allow sequences to be present in multiple bins. Without this flag, BinBencher
   will throw an error if any sequences is detected in multiple bins.
+* `--quiet`: Do not log to stderr, except error messages that end the program.
 
 ### Output files
 * `log.txt`: The log file. Look here for errors.
