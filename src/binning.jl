@@ -9,23 +9,23 @@ struct BinStats
     mean_bin_f1::Float64
 end
 
-function BinStats(bins::Vector{Bin}; assembly::Bool=true)
+function BinStats(bins::Vector{Bin}; assembly::Bool = true)
     (mean_bin_recall, mean_bin_precision, mean_bin_f1) =
         mean_bin_recall_prec(bins; assembly)
-    BinStats(mean_bin_recall, mean_bin_precision, mean_bin_f1)
+    return BinStats(mean_bin_recall, mean_bin_precision, mean_bin_f1)
 end
 
-function mean_bin_recall_prec(bins::Vector{Bin}; assembly::Bool=true)
+function mean_bin_recall_prec(bins::Vector{Bin}; assembly::Bool = true)
     (recall_sum, prec_sum, f1_sum, nbins) = foldl(
         Iterators.filter(
             !isnothing,
             Iterators.map(b -> recall_prec_max_f1(b; assembly), bins),
         );
-        init=(0.0, 0.0, 0.0, 0),
+        init = (0.0, 0.0, 0.0, 0),
     ) do (recall_sum, prec_sum, f1_sum, nbins), (; recall, precision)
         (recall_sum + recall, prec_sum + precision, f1_sum + f1(recall, precision), nbins + 1)
     end
-    (recall_sum / nbins, prec_sum / nbins, f1_sum / nbins)
+    return (recall_sum / nbins, prec_sum / nbins, f1_sum / nbins)
 end
 
 """
@@ -106,11 +106,11 @@ function Base.show(io::IO, x::Binning)
     if nc isa Integer
         print(io, "NC = ", nc)
     end
-    print(io, ')')
+    return print(io, ')')
 end
 
 function Base.show(io::IO, ::MIME"text/plain", x::Binning)
-    if get(io, :compact, false)
+    return if get(io, :compact, false)
         show(io, x)
     else
         buf = IOBuffer()
@@ -136,18 +136,18 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
                 "\n  Mean bin ",
                 name,
                 " R/P/F1: ",
-                round(stats.mean_bin_recall; digits=3),
+                round(stats.mean_bin_recall; digits = 3),
                 " / ",
-                round(stats.mean_bin_precision; digits=3),
+                round(stats.mean_bin_precision; digits = 3),
                 " / ",
-                round(stats.mean_bin_f1; digits=3),
+                round(stats.mean_bin_f1; digits = 3),
             )
         end
-        print(io, "\n  Precisions: ", repr([round(i; digits=3) for i in x.precisions]))
-        print(io, "\n  Recalls:    ", repr([round(i; digits=3) for i in x.recalls]))
+        print(io, "\n  Precisions: ", repr([round(i; digits = 3) for i in x.precisions]))
+        print(io, "\n  Recalls:    ", repr([round(i; digits = 3) for i in x.recalls]))
         print(io, "\n  Reconstruction (genomes):\n")
         seekstart(buf)
-        print_matrix(buf, x; level=0, assembly=false)
+        print_matrix(buf, x; level = 0, assembly = false)
         seekstart(buf)
         for line in eachline(buf)
             println(io, "    ", line)
@@ -183,14 +183,14 @@ julia> n_recovered(binning, 0.4, 0.71; assembly=true, level=2)
 ```
 """
 function n_recovered(
-    binning::Binning,
-    recall::Real,
-    precision::Real;
-    level::Integer=0,
-    assembly::Bool=false,
-)::Union{Integer, ThresholdError}
+        binning::Binning,
+        recall::Real,
+        precision::Real;
+        level::Integer = 0,
+        assembly::Bool = false,
+    )::Union{Integer, ThresholdError}
     matrices = assembly ? binning.recovered_asms : binning.recovered_genomes
-    extract_from_matrix(binning, recall, precision, matrices, level)
+    return extract_from_matrix(binning, recall, precision, matrices, level)
 end
 
 """
@@ -212,23 +212,23 @@ julia> n_passing_bins(binning, 0.65, 0.71)
 ```
 """
 function n_passing_bins(
-    binning::Binning,
-    recall::Real,
-    precision::Real;
-    level::Integer=0,
-    assembly::Bool=false,
-)::Union{Integer, ThresholdError}
+        binning::Binning,
+        recall::Real,
+        precision::Real;
+        level::Integer = 0,
+        assembly::Bool = false,
+    )::Union{Integer, ThresholdError}
     matrices = assembly ? binning.bin_asms : binning.bin_genomes
-    extract_from_matrix(binning, recall, precision, matrices, level)
+    return extract_from_matrix(binning, recall, precision, matrices, level)
 end
 
 function extract_from_matrix(
-    binning::Binning,
-    recall::Real,
-    precision::Real,
-    matrices::Vector{<:Matrix},
-    level::Integer=0,
-)::Union{Integer, ThresholdError}
+        binning::Binning,
+        recall::Real,
+        precision::Real,
+        matrices::Vector{<:Matrix},
+        level::Integer = 0,
+    )::Union{Integer, ThresholdError}
     inds = recall_precision_indices(binning, recall, precision)
     inds isa ThresholdError && return inds
     (ri, pi) = inds
@@ -236,19 +236,19 @@ function extract_from_matrix(
         return ThresholdError(RankOutOfRange())
     end
     m = matrices[level + 1]
-    m[pi, ri]
+    return m[pi, ri]
 end
 
 function recall_precision_indices(
-    binning::Binning,
-    recall::Real,
-    precision::Real,
-)::Union{Tuple{Int, Int}, ThresholdError}
+        binning::Binning,
+        recall::Real,
+        precision::Real,
+    )::Union{Tuple{Int, Int}, ThresholdError}
     ri = searchsortedfirst(binning.recalls, recall)
     ri > length(binning.recalls) && return ThresholdError(RecallTooHigh())
     pi = searchsortedfirst(binning.precisions, precision)
     pi > length(binning.precisions) && return ThresholdError(PrecisionTooHigh())
-    (ri, pi)
+    return (ri, pi)
 end
 
 """
@@ -262,14 +262,14 @@ of reconstructed genomes.
 See also: [`Binning`](@ref)
 """
 print_matrix(x::Binning; kwargs...) = print_matrix(stdout, x; kwargs...)
-function print_matrix(io::IO, x::Binning; level::Integer=0, assembly::Bool=false)
+function print_matrix(io::IO, x::Binning; level::Integer = 0, assembly::Bool = false)
     ms = assembly ? x.recovered_asms : x.recovered_genomes
     m = ms[level + 1]
-    rnd(x) = string(round(x; digits=3))
+    rnd(x) = string(round(x; digits = 3))
     digitwidth(x) = sizeof(rnd(x))
     width = max(
-        max(4, ndigits(maximum(m; init=0) + 1)),
-        maximum(digitwidth, x.recalls; init=0) + 1,
+        max(4, ndigits(maximum(m; init = 0) + 1)),
+        maximum(digitwidth, x.recalls; init = 0) + 1,
     )
     col1_width = max(3, maximum(digitwidth, x.precisions))
     println(io, rpad("P\\R", col1_width), join([lpad(i, width) for i in x.recalls]))
@@ -280,47 +280,48 @@ function print_matrix(io::IO, x::Binning; level::Integer=0, assembly::Bool=false
             join([lpad(i, width) for i in m[prec_index, :]]),
         )
     end
+    return
 end
 
 function n_nc(x::Binning)::Union{Int, ThresholdError}
-    extract_from_matrix(x, 0.9, 0.95, x.recovered_genomes, 0)
+    return extract_from_matrix(x, 0.9, 0.95, x.recovered_genomes, 0)
 end
 
 n_bins(x::Binning) = length(x.bins)
 
 function Binning(path::AbstractString, ref::Reference; kwargs...)
-    open_perhaps_gzipped(io -> Binning(io, ref; kwargs...), String(path))
+    return open_perhaps_gzipped(io -> Binning(io, ref; kwargs...), String(path))
 end
 
 # This is the most common constructor in practice, because we usually load binnings from files,
 # and also the most efficient. I immediately convert the sequences to integers for faster
 # processing, then convert back to seqs before instantiating the bins.
 function Binning(
-    io::IO,
-    ref::Reference;
-    min_size::Integer=1,
-    min_seqs::Integer=1,
-    binsplit_separator::Union{AbstractString, Char, Nothing}=nothing,
-    disjoint::Bool=true,
-    recalls=DEFAULT_RECALLS,
-    precisions=DEFAULT_PRECISIONS,
-    filter_genomes::Function=Returns(true),
-    filter_bins::Function=Returns(true),
-)
+        io::IO,
+        ref::Reference;
+        min_size::Integer = 1,
+        min_seqs::Integer = 1,
+        binsplit_separator::Union{AbstractString, Char, Nothing} = nothing,
+        disjoint::Bool = true,
+        recalls = DEFAULT_RECALLS,
+        precisions = DEFAULT_PRECISIONS,
+        filter_genomes::Function = Returns(true),
+        filter_bins::Function = Returns(true),
+    )
     idxs_by_binname = parse_bins(io, Dict, ref, binsplit_separator, disjoint)
     filter!(idxs_by_binname) do (_, idxs)
         length(idxs) ≥ min_seqs &&
-            sum((length(first(ref.targets[i])) for i in idxs); init=0) ≥ min_size
+            sum((length(first(ref.targets[i])) for i in idxs); init = 0) ≥ min_size
     end
     considered_genomes = _filter_genomes(filter_genomes, ref)
     bins = _getbins(ref, considered_genomes, idxs_by_binname)
     filter_bins === Returns(true) || filter!(filter_bins, bins)
     # We already checked for disjointedness when parsing bins, so we skip it here
-    Binning(bins, ref; recalls, precisions, disjoint=false)
+    return Binning(bins, ref; recalls, precisions, disjoint = false)
 end
 
 function _filter_genomes(f::Function, ref::Reference)::Union{Nothing, Set{Genome}}
-    if f === Returns(true)
+    return if f === Returns(true)
         nothing
     else
         Set(g for g in genomes(ref) if f(g))
@@ -328,14 +329,14 @@ function _filter_genomes(f::Function, ref::Reference)::Union{Nothing, Set{Genome
 end
 
 function _getbins(
-    ref::Reference,
-    considered_genomes::Union{Nothing, Set{Genome}},
-    idxs_by_binname::Dict{SubString{String}, Vector{UInt32}},
-)
+        ref::Reference,
+        considered_genomes::Union{Nothing, Set{Genome}},
+        idxs_by_binname::Dict{SubString{String}, Vector{UInt32}},
+    )
     scratch = Tuple{Int, Int}[]
-    [
+    return [
         bin_by_indices(binname, seq_idxs, ref.targets, scratch, considered_genomes)::Bin for
-        (binname, seq_idxs) in idxs_by_binname
+            (binname, seq_idxs) in idxs_by_binname
     ]
 end
 
@@ -354,21 +355,21 @@ julia> n_bins(binning)
 ```
 """
 function Binning(
-    bins::Vector{Bin},
-    ref::Reference;
-    recalls=DEFAULT_RECALLS,
-    precisions=DEFAULT_PRECISIONS,
-    disjoint::Bool=true,
-)
-    sort!(bins; by=i -> i.name)
+        bins::Vector{Bin},
+        ref::Reference;
+        recalls = DEFAULT_RECALLS,
+        precisions = DEFAULT_PRECISIONS,
+        disjoint::Bool = true,
+    )
+    sort!(bins; by = i -> i.name)
     checked_recalls = validate_recall_precision(recalls)
     checked_precisions = validate_recall_precision(precisions)
     disjoint && check_disjoint(bins)
-    bin_asm_stats = BinStats(bins; assembly=true)
-    bin_genome_stats = BinStats(bins; assembly=false)
+    bin_asm_stats = BinStats(bins; assembly = true)
+    bin_genome_stats = BinStats(bins; assembly = false)
     (asm_matrices, genome_matrices, bin_asms, bin_genomes) =
         benchmark(ref, bins, checked_recalls, checked_precisions)
-    Binning(
+    return Binning(
         ref,
         bins,
         asm_matrices,
@@ -403,27 +404,27 @@ Currently, the `disjoint` option uses a simple greedy algorithm to assign
 sequences to genomes.
 """
 function gold_standard(ref::Reference; kwargs...)::Binning
-    gold_standard(ref, Set(first(v) for v in ref.targets)::Set{Sequence}; kwargs...)
+    return gold_standard(ref, Set(first(v) for v in ref.targets)::Set{Sequence}; kwargs...)
 end
 
 function gold_standard(ref::Reference, binning::Binning; kwargs...)::Binning
-    seqs::Set{Sequence} = reduce(binning.bins; init=Set{Sequence}()) do s, bin
+    seqs::Set{Sequence} = reduce(binning.bins; init = Set{Sequence}()) do s, bin
         union!(s, bin.sequences)
     end
-    gold_standard(ref, seqs; kwargs...)
+    return gold_standard(ref, seqs; kwargs...)
 end
 
 function gold_standard(ref::Reference, sequences; kwargs...)::Binning
-    gold_standard(ref, Set(sequences)::Set{Sequence}; kwargs...)
+    return gold_standard(ref, Set(sequences)::Set{Sequence}; kwargs...)
 end
 
 function gold_standard(
-    ref::Reference,
-    sequences::Set{Sequence};
-    disjoint::Bool=true,
-    recalls=DEFAULT_RECALLS,
-    precisions=DEFAULT_PRECISIONS,
-)::Binning
+        ref::Reference,
+        sequences::Set{Sequence};
+        disjoint::Bool = true,
+        recalls = DEFAULT_RECALLS,
+        precisions = DEFAULT_PRECISIONS,
+    )::Binning
     sequences_of_genome = Dict{Genome, Set{Sequence}}()
     for sequence in sequences
         targets = last(ref.targets[ref.target_index_by_name[sequence.name]])
@@ -440,25 +441,25 @@ function gold_standard(
     scratch = Tuple{Int, Int}[]
     bins = [
         bin_by_indices(
-            "bin_" * genome.name,
-            [ref.target_index_by_name[i.name] for i in seqs],
-            ref.targets,
-            scratch,
-            nothing,
-        ) for (genome, seqs) in sequences_of_genome
+                "bin_" * genome.name,
+                [ref.target_index_by_name[i.name] for i in seqs],
+                ref.targets,
+                scratch,
+                nothing,
+            ) for (genome, seqs) in sequences_of_genome
     ]
-    sort!(bins; by=i -> i.name)
-    Binning(bins, ref; recalls=recalls, precisions=precisions, disjoint=false)
+    sort!(bins; by = i -> i.name)
+    return Binning(bins, ref; recalls = recalls, precisions = precisions, disjoint = false)
 end
 
 function check_disjoint(bins)
-    nseq = sum(i -> length(i.sequences), bins; init=0)
+    nseq = sum(i -> length(i.sequences), bins; init = 0)
     seen_seqs = sizehint!(Set{Sequence}(), nseq)
     for bin in bins, seq in bin.sequences
         in!(seen_seqs, seq) &&
             error(lazy"Sequence \"$(seq.name)\" seen twice in disjoint Binning")
     end
-    nothing
+    return nothing
 end
 
 function validate_recall_precision(xs)::Vector{Float64}
@@ -472,16 +473,16 @@ function validate_recall_precision(xs)::Vector{Float64}
         push!(s, x)
     end
     isempty(s) && error("Must provide at least 1 recall/precision value")
-    sort!(collect(s))
+    return sort!(collect(s))
 end
 
 # TODO: This function is massive. Can I refactor it into smaller functions?
 function benchmark(
-    ref::Reference,
-    bins::Vector{Bin},
-    recalls::Vector{Float64},
-    precisions::Vector{Float64};
-)::NTuple{4, Vector{<:Matrix{<:Integer}}}
+        ref::Reference,
+        bins::Vector{Bin},
+        recalls::Vector{Float64},
+        precisions::Vector{Float64}
+    )::NTuple{4, Vector{<:Matrix{<:Integer}}}
     # We have 8 qualitatively different combinations of the three options below:
     # * 1) rank 0 (a Genome), versus 2) another rank (a Clade)
     # * Counting 1) unique genomes/clades recovered at a r/p threshold level, or
@@ -513,11 +514,11 @@ function benchmark(
         [Vector{Float64}(undef, length(precisions)) for _ in 1:nranks(ref)]
     bin_genome_matrices = [
         zeros(Int, length(recalls), length(precisions)) for
-        _ in bin_max_genome_recall_at_precision
+            _ in bin_max_genome_recall_at_precision
     ]
     bin_asm_matrices = [
         zeros(Int, length(recalls), length(precisions)) for
-        _ in bin_max_genome_recall_at_precision
+            _ in bin_max_genome_recall_at_precision
     ]
 
     for bin in bins
@@ -566,9 +567,9 @@ function benchmark(
 
             # Get maximum recall for bins
             for (v, recall) in (
-                (bin_max_asm_recall_at_precision, asm_recall),
-                (bin_max_genome_recall_at_precision, clade_recall),
-            )
+                    (bin_max_asm_recall_at_precision, asm_recall),
+                    (bin_max_genome_recall_at_precision, clade_recall),
+                )
                 vr = v[clade.rank + 1]
                 vr[precision_index] = max(vr[precision_index], recall)
             end
@@ -577,9 +578,9 @@ function benchmark(
         # Now that the maximal recall at given precisions for this bin has been filled out,
         # we use the data to increment the correct row in the matrix.
         for (vs, ms) in (
-            (bin_max_genome_recall_at_precision, bin_genome_matrices),
-            (bin_max_asm_recall_at_precision, bin_asm_matrices),
-        )
+                (bin_max_genome_recall_at_precision, bin_genome_matrices),
+                (bin_max_asm_recall_at_precision, bin_asm_matrices),
+            )
             for (v, m) in zip(vs, ms)
                 # First, we make the recall vector reverse cumulative.
                 # If a bin was seen with recall 0.6 at precision 0.8, then it's also
@@ -633,14 +634,14 @@ function benchmark(
     # Now, we need to do the reverse - update the low recall values with prec. of high rec. values.
     # We can do this once here, in the matrix.
     for mv in (asm_matrices, genome_matrices, bin_genome_matrices, bin_asm_matrices),
-        m in mv
+            m in mv
 
         make_columnwise_reverse_cumulative!(m)
     end
 
     # For historical reasons, the matrices above are transposed.
     # Instead of rewriting this massive function, simply transpose each matrix before returning
-    map(
+    return map(
         v -> map(permutedims, v),
         (asm_matrices, genome_matrices, bin_asm_matrices, bin_genome_matrices),
     )
@@ -649,10 +650,10 @@ end
 "For each precision column in the matrix, add one to the correct row
 given by the recall value at the given precision"
 function update_matrix!(
-    matrix::Matrix{<:Integer},
-    v::Vector{<:AbstractFloat},
-    recalls::Vector{Float64},
-)
+        matrix::Matrix{<:Integer},
+        v::Vector{<:AbstractFloat},
+        recalls::Vector{Float64},
+    )
     # Since we iterate over increasing precisions, the recall_index must shrink
     # or stay the same per iteration. So, we can reduce the search space
     # at each iteration by modifying imax
@@ -663,14 +664,14 @@ function update_matrix!(
         imax = min(recall_index, imax)
         matrix[recall_index, precision_index] += 1
     end
-    matrix
+    return matrix
 end
 
 function make_reverse_max!(v::Vector{<:Real})
     @inbounds for i in (length(v) - 1):-1:1
         v[i] = max(v[i], v[i + 1])
     end
-    v
+    return v
 end
 
 function make_columnwise_reverse_cumulative!(m::Matrix{<:Real})
@@ -679,4 +680,5 @@ function make_columnwise_reverse_cumulative!(m::Matrix{<:Real})
             col[i] += col[i + 1]
         end
     end
+    return
 end

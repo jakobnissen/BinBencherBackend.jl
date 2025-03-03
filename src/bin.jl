@@ -69,24 +69,24 @@ end
 # Note: This constructor is user-facing. We use the more efficient
 # `bin_by_indices` when constructing Bins in practise
 function Bin(
-    name::AbstractString,
-    ref::Reference,
-    sequences, # iterator of Sequence
-    considered_genomes::Union{Nothing, Set{Genome}}=nothing,
-)
+        name::AbstractString,
+        ref::Reference,
+        sequences, # iterator of Sequence
+        considered_genomes::Union{Nothing, Set{Genome}} = nothing,
+    )
     name = check_valid_identifier(String(name))
     indices = [ref.target_index_by_name[s.name] for s in sequences]
     scratch = Vector{Tuple{Int, Int}}()
-    bin_by_indices(name, indices, ref.targets, scratch, considered_genomes)
+    return bin_by_indices(name, indices, ref.targets, scratch, considered_genomes)
 end
 
 function bin_by_indices(
-    name::AbstractString,
-    seq_indices::Vector{<:Integer},
-    targets::Vector{Tuple{Sequence, Vector{Target}}},
-    scratch::Vector{Tuple{Int, Int}},
-    considered_genomes::Union{Nothing, Set{Genome}},
-)
+        name::AbstractString,
+        seq_indices::Vector{<:Integer},
+        targets::Vector{Tuple{Sequence, Vector{Target}}},
+        scratch::Vector{Tuple{Int, Int}},
+        considered_genomes::Union{Nothing, Set{Genome}},
+    )
     seqs = [first(targets[i]) for i in seq_indices]
 
     # Which sequences map to the given genome, ints in bitset is indices into `seqs`.
@@ -107,9 +107,9 @@ function bin_by_indices(
     # Set `foreign`, which we can compute simply by knowing which sequences map to the genomes
     for (genome, set) in genome_mapping
         genomes[genome] = (;
-            asmsize=0,
-            total_bp=0,
-            foreign=mapping_breadth - sum(i -> seqs[i].length, set; init=0),
+            asmsize = 0,
+            total_bp = 0,
+            foreign = mapping_breadth - sum(i -> seqs[i].length, set; init = 0),
         )
     end
     # Incrementally update `asmsize`; we need to compute this on a per-source level
@@ -118,9 +118,9 @@ function bin_by_indices(
         (new_asmsize, new_total_bp) =
             assembly_size!(identity, scratch, spans, source.length)
         genomes[source.genome] = (;
-            asmsize=asmsize + new_asmsize,
-            total_bp=total_bp + new_total_bp,
-            foreign=foreign,
+            asmsize = asmsize + new_asmsize,
+            total_bp = total_bp + new_total_bp,
+            foreign = foreign,
         )
     end
     # We store sets of mapping sequences - the set mapping to a clade is the union of those
@@ -133,14 +133,14 @@ function bin_by_indices(
         asm_recall = asmsize / genome.assembly_size
         genome_recall = asmsize / genome.genome_size
         (old_asm_recall, old_genome_recall, mapping) = get!(
-            () -> (; asm_recall=0.0, genome_recall=0.0, mapping_seqs=BitSet()),
+            () -> (; asm_recall = 0.0, genome_recall = 0.0, mapping_seqs = BitSet()),
             clade_mapping,
             genome.parent,
         )
         clade_mapping[genome.parent] = (;
-            asm_recall=max(old_asm_recall, asm_recall),
-            genome_recall=max(old_genome_recall, genome_recall),
-            mapping_seqs=union!(mapping, genome_mapping[genome]),
+            asm_recall = max(old_asm_recall, asm_recall),
+            genome_recall = max(old_genome_recall, genome_recall),
+            mapping_seqs = union!(mapping, genome_mapping[genome]),
         )
     end
     # Now, iteratively compute clades at a higher and higher level.
@@ -154,15 +154,15 @@ function bin_by_indices(
             # If top level clade: Do not continue to next generation
             parent === nothing && continue
             (parent_asm_recall, parent_genome_recall, parent_mapping) = get!(
-                () -> (; asm_recall=0.0, genome_recall=0.0, mapping_seqs=BitSet()),
+                () -> (; asm_recall = 0.0, genome_recall = 0.0, mapping_seqs = BitSet()),
                 clade_mapping,
                 parent,
             )
             (child_asm_recall, child_genome_recall, child_mapping) = clade_mapping[clade]
             clade_mapping[parent] = (
-                asm_recall=max(parent_asm_recall, child_asm_recall),
-                genome_recall=max(parent_genome_recall, child_genome_recall),
-                mapping_seqs=union!(parent_mapping, child_mapping),
+                asm_recall = max(parent_asm_recall, child_asm_recall),
+                genome_recall = max(parent_genome_recall, child_genome_recall),
+                mapping_seqs = union!(parent_mapping, child_mapping),
             )
             push!(next_generation, parent)
         end
@@ -177,12 +177,12 @@ function bin_by_indices(
         @NamedTuple{asm_recall::Float64, genome_recall::Float64, precision::Float64}
     }()
     for (clade, (asm_recall, genome_recall, set)) in clade_mapping
-        precision = sum(i -> seqs[i].length, set; init=0) / mapping_breadth
+        precision = sum(i -> seqs[i].length, set; init = 0) / mapping_breadth
         clades[clade] =
-            (; asm_recall=asm_recall, genome_recall=genome_recall, precision=precision)
+            (; asm_recall = asm_recall, genome_recall = genome_recall, precision = precision)
     end
-    breadth = sum(seqs |> imap(length); init=0)
-    Bin(String(name), seqs, genomes, clades, breadth)
+    breadth = sum(seqs |> imap(length); init = 0)
+    return Bin(String(name), seqs, genomes, clades, breadth)
 end
 
 n_seqs(x::Bin) = length(x.sequences)
@@ -211,7 +211,7 @@ intersecting(::Type{<:Clade}, x::Bin) = keys(x.clades)
 
 Base.show(io::IO, x::Bin) = print(io, "Bin(", x.name, ')')
 function Base.show(io::IO, ::MIME"text/plain", x::Bin)
-    if get(io, :compact, false)
+    return if get(io, :compact, false)
         show(io, x)
     else
         ngenomes = length(x.genomes)
@@ -232,11 +232,11 @@ function Base.show(io::IO, ::MIME"text/plain", x::Bin)
     end
 end
 
-function confusion_matrix(genome::Genome, bin::Bin; assembly::Bool=false)
+function confusion_matrix(genome::Genome, bin::Bin; assembly::Bool = false)
     (; asmsize, foreign) =
-        get(bin.genomes, genome, (asmsize=0, total_bp=0, foreign=bin.breadth))
+        get(bin.genomes, genome, (asmsize = 0, total_bp = 0, foreign = bin.breadth))
     fn = (assembly ? genome.assembly_size : genome.genome_size) - asmsize
-    (asmsize, foreign, fn)
+    return (asmsize, foreign, fn)
 end
 
 """
@@ -262,33 +262,33 @@ julia> recall_precision(bingenome.parent, bin; assembly=false)
 (recall = 0.4, precision = 1.0)
 ```
 """
-function recall_precision(genome::Genome, bin::Bin; assembly::Bool=false)
-    (tp, fp, fn) = confusion_matrix(genome, bin; assembly=assembly)
+function recall_precision(genome::Genome, bin::Bin; assembly::Bool = false)
+    (tp, fp, fn) = confusion_matrix(genome, bin; assembly = assembly)
     recall = tp / (tp + fn)
     precision = tp / (tp + fp)
-    (; recall, precision)
+    return (; recall, precision)
 end
 
-function recall_precision(clade::Clade{Genome}, bin::Bin; assembly::Bool=false)
+function recall_precision(clade::Clade{Genome}, bin::Bin; assembly::Bool = false)
     (; asm_recall, genome_recall, precision) =
-        get(bin.clades, clade, (; asm_recall=0.0, genome_recall=0.0, precision=0.0))
-    assembly ? (; recall=asm_recall, precision) : (; recall=genome_recall, precision)
+        get(bin.clades, clade, (; asm_recall = 0.0, genome_recall = 0.0, precision = 0.0))
+    return assembly ? (; recall = asm_recall, precision) : (; recall = genome_recall, precision)
 end
 
 # NB: Returns NaN if recall and precision is zero
 function fscore(recall::Real, precision::Real, b::Real)
-    (1 + b^2) * (recall * precision) / ((b^2 * precision) + recall)
+    return (1 + b^2) * (recall * precision) / ((b^2 * precision) + recall)
 end
 f1(recall::Real, precision::Real) = fscore(recall, precision, 1)
 
-function fscore(genome::Genome, bin::Bin, b::Real; assembly::Bool=false)
+function fscore(genome::Genome, bin::Bin, b::Real; assembly::Bool = false)
     (; recall, precision) = recall_precision(genome, bin; assembly)
-    fscore(recall, precision, b)
+    return fscore(recall, precision, b)
 end
-f1(genome::Genome, bin::Bin; assembly::Bool=false) = fscore(genome, bin, 1; assembly)
+f1(genome::Genome, bin::Bin; assembly::Bool = false) = fscore(genome, bin, 1; assembly)
 
-function recalls_precisions(::Type{Genome}, bin::Bin; assembly::Bool=false)
-    bin.genomes |> imap() do (genome, (; asmsize, foreign))
+function recalls_precisions(::Type{Genome}, bin::Bin; assembly::Bool = false)
+    return bin.genomes |> imap() do (genome, (; asmsize, foreign))
         fn = (assembly ? genome.assembly_size : genome.genome_size) - asmsize
         recall = asmsize / (asmsize + fn)
         precision = asmsize / (asmsize + foreign)
@@ -296,8 +296,8 @@ function recalls_precisions(::Type{Genome}, bin::Bin; assembly::Bool=false)
     end
 end
 
-function recalls_precisions(::Type{<:Clade}, bin::Bin; assembly::Bool=false)
-    bin.clades |> imap() do (clade, (; asm_recall, genome_recall, precision))
+function recalls_precisions(::Type{<:Clade}, bin::Bin; assembly::Bool = false)
+    return bin.clades |> imap() do (clade, (; asm_recall, genome_recall, precision))
         recall = assembly ? asm_recall : genome_recall
         (; clade, recall, precision)
     end
@@ -321,12 +321,12 @@ julia> only((s.recall, s.precision) for s in recalls_precisions(bin))
 (0.4, 1.0)
 ```
 """
-function recalls_precisions(bin::Bin; assembly::Bool=false)
-    recalls_precisions(Genome, bin; assembly)
+function recalls_precisions(bin::Bin; assembly::Bool = false)
+    return recalls_precisions(Genome, bin; assembly)
 end
 
 # Compute recall/precision of the genome with highest F1 for this bin
-function recall_prec_max_f1(bin::Bin; assembly::Bool=false)
+function recall_prec_max_f1(bin::Bin; assembly::Bool = false)
     (max_recall, max_precision, max_f1) = (0.0, 0.0, 0.0)
     for (; recall, precision) in recalls_precisions(bin; assembly)
         this_f1 = f1(recall, precision)
@@ -336,7 +336,7 @@ function recall_prec_max_f1(bin::Bin; assembly::Bool=false)
     end
     # This can happen if the bin only contain sequences unassigned to any genome
     # in which case recalls_precisions returns an iterable with zero elements
-    iszero(max_f1) ? nothing : (; recall=max_recall, precision=max_precision)
+    return iszero(max_f1) ? nothing : (; recall = max_recall, precision = max_precision)
 end
 
 """
@@ -356,8 +356,8 @@ julia> passes_f1(bin, obs_f1 + 0.001)
 false
 ```
 """
-function passes_f1(bin::Bin, threshold::Real; assembly::Bool=false)
-    any(recalls_precisions(Genome, bin; assembly)) do (; recall, precision)
+function passes_f1(bin::Bin, threshold::Real; assembly::Bool = false)
+    return any(recalls_precisions(Genome, bin; assembly)) do (; recall, precision)
         f1(recall, precision) ≥ threshold
     end
 end
@@ -379,8 +379,8 @@ julia> passes_recall_precision(bin, 0.41, 1.0)
 false
 ```
 """
-function passes_recall_precision(bin::Bin, rec::Real, prec::Real; assembly::Bool=false)
-    any(recalls_precisions(Genome, bin; assembly)) do (; recall, precision)
+function passes_recall_precision(bin::Bin, rec::Real, prec::Real; assembly::Bool = false)
+    return any(recalls_precisions(Genome, bin; assembly)) do (; recall, precision)
         recall ≥ rec && precision ≥ prec
     end
 end

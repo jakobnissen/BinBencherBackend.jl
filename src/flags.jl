@@ -1,8 +1,6 @@
-baremodule Flags
-using Base: @enum
-@enum Flag::UInt8 organism virus plasmid
-
-export Flag
+module Flags
+    @enum Flag::UInt8 organism virus plasmid
+    export Flag
 end
 
 using .Flags
@@ -68,11 +66,11 @@ function FlagSet(itr)
     for i in itr
         result = push(result, convert(Flag, i))
     end
-    result
+    return result
 end
 
-function Base.iterate(x::FlagSet, state::UInt64=x.x)
-    if iszero(state)
+function Base.iterate(x::FlagSet, state::UInt64 = x.x)
+    return if iszero(state)
         nothing
     else
         (reinterpret(Flag, trailing_zeros(state) % UInt8), state & (state - 1))

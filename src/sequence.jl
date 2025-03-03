@@ -23,7 +23,7 @@ struct Sequence
     function Sequence(name::AbstractString, length::Integer)
         str = check_valid_identifier(String(name))
         length < 1 && throw(ArgumentError("Cannot instantiate an empty sequence"))
-        new(str, Int(length))
+        return new(str, Int(length))
     end
 end
 

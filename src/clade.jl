@@ -64,7 +64,7 @@ const RANK_BY_NAME = Dict(rank => i - 1 for (i, rank) in enumerate(RANKS))
 
 function Base.show(io::IO, x::Clade)
     suffix = x.ngenomes == 1 ? "" : "s"
-    print(
+    return print(
         io,
         titlecase(RANKS[x.rank + 1]),
         " \"",
@@ -77,11 +77,11 @@ function Base.show(io::IO, x::Clade)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", x::Clade)
-    if get(io, :compact, false)
+    return if get(io, :compact, false)
         show(io, x)
     else
         buf = IOBuffer()
-        AbstractTrees.print_tree(buf, x; maxdepth=3)
+        AbstractTrees.print_tree(buf, x; maxdepth = 3)
         seekstart(buf)
         for (i, line) in zip(1:25, eachline(buf))
             println(io, line)

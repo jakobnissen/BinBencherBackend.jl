@@ -119,7 +119,7 @@ function add_child!(c::Clade{Genome}, g::Node)::Clade
         g.parent = c
     end
     c.ngenomes += (g isa Genome ? 1 : g.ngenomes)
-    c
+    return c
 end
 
 "Delete a child from the clade tree."
@@ -138,7 +138,7 @@ function recursively_delete_child!(child::T) where {T <: Node}
         end
     end
     # If the clade now has no children, we can delete the clade
-    isempty(children) && recursively_delete_child!(parent)
+    return isempty(children) && recursively_delete_child!(parent)
 end
 
 Base.:(==)(g1::Genome, g2::Genome) = g1.name == g2.name
@@ -151,7 +151,7 @@ function add_source!(genome::Genome, name::AbstractString, length::Integer)
     in(source, genome.sources) &&
         error(lazy"Genome $(genome.name) already have source $(source.name)")
     push!(genome.sources, source)
-    genome
+    return genome
 end
 
 function finish!(genome::Genome, scratch::Vector{Tuple{Int, Int}})
@@ -161,14 +161,14 @@ function finish!(genome::Genome, scratch::Vector{Tuple{Int, Int}})
     for source in genome.sources
         @isinit(source.assembly_size) || finish!(source, scratch)
     end
-    @init! genome.genome_size = sum(i -> i.length, genome.sources; init=0)
-    @init! genome.assembly_size = sum(i -> i.assembly_size, genome.sources; init=0)
-    genome
+    @init! genome.genome_size = sum(i -> i.length, genome.sources; init = 0)
+    @init! genome.assembly_size = sum(i -> i.assembly_size, genome.sources; init = 0)
+    return genome
 end
 
 Base.show(io::IO, x::Genome) = print(io, "Genome(", x.name, ')')
 function Base.show(io::IO, ::MIME"text/plain", x::Genome)
-    if get(io, :compact, false)
+    return if get(io, :compact, false)
         show(io, x)
     else
         asm = (x.assembly_size / x.genome_size) * 100
@@ -185,7 +185,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Genome)
             "\n  Assembly size: ",
             x.assembly_size,
             " (",
-            round(asm; digits=1),
+            round(asm; digits = 1),
             " %)",
             "\n  Sources:       ",
             length(x.sources),
@@ -215,7 +215,7 @@ function mrca(a::Node, b::Node)::Node
         lo = lo.parent::Clade
         hi = hi.parent::Clade
     end
-    lo
+    return lo
 end
 
 """
@@ -244,7 +244,7 @@ function descends_from(child::Node, ancestor::Node)::Bool
         anc.rank > ancestor.rank && return false
         anc === ancestor && return true
     end
-    false
+    return false
 end
 
 # The design here is awkward: Do we store the next clade to emit,
@@ -284,14 +284,14 @@ ancestors(child::Genome) = AncestorIterator(child.parent, false)
 
 function ancestors(child::Clade{Genome})
     next = child.parent
-    isnothing(next) ? AncestorIterator(child, true) : AncestorIterator(next, false)
+    return isnothing(next) ? AncestorIterator(child, true) : AncestorIterator(next, false)
 end
 
 # The state is essentially a Union{Clade, Nothing}, but I want the state
 # to be a concrete type
-function Base.iterate(it::AncestorIterator, state=(it.start, it.empty))
+function Base.iterate(it::AncestorIterator, state = (it.start, it.empty))
     (next, is_empty) = state
     is_empty && return nothing
     parent = next.parent
-    (next, (isnothing(parent) ? (next, true) : (parent, false)))
+    return (next, (isnothing(parent) ? (next, true) : (parent, false)))
 end

@@ -48,7 +48,7 @@ See also: [`subset`](@ref), [`Genome`](@ref), [`Clade`](@ref)
 Reference
 
 function Reference(::Unsafe)
-    Reference(
+    return Reference(
         Set{Genome}(),
         Dict{String, Int}(),
         Vector{Tuple{Sequence, Vector{Target}}}(),
@@ -60,7 +60,7 @@ end
 
 Base.show(io::IO, ::Reference) = print(io, "Reference()")
 function Base.show(io::IO, ::MIME"text/plain", x::Reference)
-    if get(io, :compact, false)
+    return if get(io, :compact, false)
         show(io, x)
     else
         print(
@@ -75,7 +75,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Reference)
             "\n  Seq length: ",
             x.shortest_seq_len,
             "\n  Assembled:  ",
-            round(x.fraction_assembled * 100; digits=1),
+            round(x.fraction_assembled * 100; digits = 1),
             " %",
         )
     end
@@ -86,7 +86,7 @@ genomes(x::Reference) = x.genomes
 n_seqs(x::Reference) = length(x.targets)
 function nranks(x::Reference)
     isempty(x.genomes) && return 0
-    length(x.clades) + 1
+    return length(x.clades) + 1
 end
 
 function finish!(ref::Reference)
@@ -98,12 +98,12 @@ function finish!(ref::Reference)
         assembly_size += genome.assembly_size
         genome_size += genome.genome_size
     end
-    shortest_seq_len = minimum(i -> length(first(i)), ref.targets; init=typemax(Int))
+    shortest_seq_len = minimum(i -> length(first(i)), ref.targets; init = typemax(Int))
     shortest_seq_len == typemax(Int) &&
         error("Cannot initialize a Reference with no sequences")
     @init! ref.shortest_seq_len = shortest_seq_len
     @init! ref.fraction_assembled = assembly_size / genome_size
-    ref
+    return ref
 end
 
 """
@@ -147,10 +147,10 @@ Reference
 ```
 """
 function subset!(
-    ref::Reference;
-    sequences::Function=Returns(true),
-    genomes::Function=Returns(true),
-)::Reference
+        ref::Reference;
+        sequences::Function = Returns(true),
+        genomes::Function = Returns(true),
+    )::Reference
     ref = uninit!(ref)
 
     # Cache the sequences and genomes to remove in order to not
@@ -203,7 +203,7 @@ function subset!(
     end
 
     # Re-initialize the now completely filtered Reference
-    finish!(ref)
+    return finish!(ref)
 end
 
 # This deepcopy is quite slow, and it would be nice to optimise it.
@@ -230,13 +230,13 @@ function uninit!(ref::Reference)
             @uninit! source.total_bp
         end
     end
-    ref
+    return ref
 end
 
 function add_genome!(ref::Reference, genome::Genome)
     in(genome, ref.genomes) && error(lazy"Genome $(genome.name) already in reference")
     push!(ref.genomes, genome)
-    ref
+    return ref
 end
 
 function add_sequence!(ref::Reference, seq::Sequence, targets::Vector{Target})
@@ -252,16 +252,16 @@ function add_sequence!(ref::Reference, seq::Sequence, targets::Vector{Target})
         error(lazy"Duplicate sequence in reference: $(seq.name)")
     end
     push!(ref.targets, (seq, targets))
-    ref
+    return ref
 end
 
 function parse_bins(
-    io::IO,
-    ::Type{Dict},
-    ref::Reference,
-    binsplit_sep::Union{Nothing, AbstractString, Char}=nothing,
-    disjoint::Bool=true,
-)::Dict{<:AbstractString, <:Vector{<:Integer}}
+        io::IO,
+        ::Type{Dict},
+        ref::Reference,
+        binsplit_sep::Union{Nothing, AbstractString, Char} = nothing,
+        disjoint::Bool = true,
+    )::Dict{<:AbstractString, <:Vector{<:Integer}}
     lines = eachline(io)
     header = "clustername\tcontigname"
     it = iterate(lines)
@@ -281,7 +281,7 @@ function parse_bins(
         seen_indices[i] = true
         push!(get!(valtype(idxs_by_binname), idxs_by_binname, binname), i)
     end
-    idxs_by_binname
+    return idxs_by_binname
 end
 
 const JSON_VERSION = 2
@@ -298,7 +298,7 @@ const JSON_VERSION = 2
 const GENOMES_JSON_T = Vector{Tuple{String, Int, Vector{Tuple{String, Int}}}}
 
 # [(sequence_name,  sequence_length, [(subject_name, from_position, to_position)...])...]
-# The positions are the 1-indexed starting and ending positions of where the 
+# The positions are the 1-indexed starting and ending positions of where the
 # sequence maps to in the subject.
 # If the sequence 'wraps' around the subject (i.e. subject is circular), then
 # you have from_position > to_position
@@ -311,7 +311,7 @@ const SEQUENCES_JSON_T = Vector{Tuple{String, Int, Vector{Tuple{String, Int, Int
 # Lowest level has genome name as the left element and the genome's parent as
 # the right element.
 # Example: Genomes G1 and G2 are both E. colis and are the only genomes:
-# [[("G1", "E. coli"), ("G2", "E. coli")], [("E. coli", "Escherichia")]] 
+# [[("G1", "E. coli"), ("G2", "E. coli")], [("E. coli", "Escherichia")]]
 const TAXMAPS_JSON_T = Vector{Vector{Tuple{String, String}}}
 
 struct ReferenceJSON
@@ -330,7 +330,7 @@ function Reference(json_struct::ReferenceJSON)
     if json_struct.version != JSON_VERSION
         @warn (
             "Deserializing reference JSON of version $(json_struct.version), " *
-            "but the supported version of the currently loaded version of BinBencherBackend is $(JSON_VERSION)."
+                "but the supported version of the currently loaded version of BinBencherBackend is $(JSON_VERSION)."
         )
     end
     ref = Reference(unsafe)
@@ -343,6 +343,9 @@ function Reference(json_struct::ReferenceJSON)
             add_source!(genome, source_name, source_length)
         end
     end
+
+    # Parse taxonomy in a background task
+    tax_task = Threads.@spawn parse_taxonomy(ref.genomes, json_struct.taxmaps)
 
     # Check for unique sources
     source_by_name = Dict{String, Source{Genome}}()
@@ -371,11 +374,11 @@ function Reference(json_struct::ReferenceJSON)
         add_sequence!(ref, seq, targets)
     end
 
-    # Add taxonomy
-    copy!(ref.clades, parse_taxonomy(ref.genomes, json_struct.taxmaps))
+    # Add taxonomy from the previously spawned task
+    copy!(ref.clades, fetch(tax_task)::Vector{Vector{Clade{Genome}}})
 
     # Finalize the reference
-    finish!(ref)
+    return finish!(ref)
 end
 
 function save(io::IO, ref::Reference)
@@ -390,10 +393,10 @@ function save(io::IO, ref::Reference)
     # Sequences
     sequences::SEQUENCES_JSON_T = [
         (
-            seq.name,
-            seq.length,
-            [(source.name, first(span), last(span)) for (source, span) in targets],
-        ) for (seq, targets) in ref.targets
+                seq.name,
+                seq.length,
+                [(source.name, first(span), last(span)) for (source, span) in targets],
+            ) for (seq, targets) in ref.targets
     ]
 
     json_dict[:sequences] = sequences
@@ -413,7 +416,7 @@ function save(io::IO, ref::Reference)
         end
     end
 
-    JSON3.write(io, json_dict)
+    return JSON3.write(io, json_dict)
 end
 
 # Invariants for the input list:
@@ -423,9 +426,9 @@ end
 #   - On the last rank, the parent names can be arbitrary.
 #     If there is more than a single unique name, then a top node will be added
 function parse_taxonomy(
-    genomes::Set{Genome},
-    taxmaps::Vector{Vector{Tuple{String, String}}},
-)::Vector{Vector{Clade{Genome}}}
+        genomes::Set{Genome},
+        taxmaps::Vector{Vector{Tuple{String, String}}},
+    )::Vector{Vector{Clade{Genome}}}
     child_by_name = Dict{String, Node}(g.name => g for g in genomes)
     assigned_children_names = Set{String}()
     parent_by_name = empty(child_by_name)
@@ -441,7 +444,7 @@ function parse_taxonomy(
             child = get(child_by_name, child_name, nothing)
             child === nothing && error(
                 lazy"At rank $(rank), found child name \"$(child_name)\", but this does not exist " *
-                "on the previous rank.",
+                    "on the previous rank.",
             )
             # Create parent if it does not already exist
             parent =
@@ -471,6 +474,6 @@ function parse_taxonomy(
         end
         push!(result, [top])
     end
-    foreach(i -> sort!(i; by=j -> j.name), result)
+    foreach(i -> sort!(i; by = j -> j.name), result)
     return result
 end

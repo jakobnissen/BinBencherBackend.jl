@@ -48,7 +48,7 @@ function add_sequence!(source::Source, seq::Sequence, span::Tuple{Int, Int})
     @isinit(source.assembly_size) &&
         error("Can't add sequence to source after calling finish! on it.")
     push!(source.sequences, (seq, span))
-    source
+    return source
 end
 
 function finish!(source::Source, scratch::Vector{Tuple{Int, Int}})
@@ -57,7 +57,7 @@ function finish!(source::Source, scratch::Vector{Tuple{Int, Int}})
     @assert asm_size ≤ source.length
     @init! source.assembly_size = asm_size
     @init! source.total_bp = total_bp
-    source
+    return source
 end
 
 """Compute -> (breadth, total_bp), where breadth is the number of positions in `v` covered at least once,
@@ -66,11 +66,11 @@ and total_bp the sum of the lengths of the sequences.
 The `scratch` input is mutated.
 """
 function assembly_size!(
-    by::Function,
-    scratch::Vector{Tuple{Int, Int}},
-    v::Vector, # v: Vector of X, where by(X) isa Tuple{Integer, Integer}
-    source_len::Int,
-)::Tuple{Integer, Integer}
+        by::Function,
+        scratch::Vector{Tuple{Int, Int}},
+        v::Vector, # v: Vector of X, where by(X) isa Tuple{Integer, Integer}
+        source_len::Int,
+    )::Tuple{Integer, Integer}
     # First pass: Convert elements into Tuple{Int, Int}, and count the number
     # of circularly mapping spans (i.e. spans mapping from the end of the source
     # to the beginning)
@@ -108,17 +108,17 @@ function assembly_size!(
     # Now we know we have a Vector{Tuple{Int, Int}} with no circular mappings,
     # so we can compute the assembly size
     size = total_bp = rightmost_end = 0
-    for span in sort!(scratch; by=first, alg=QuickSort)
+    for span in sort!(scratch; by = first, alg = QuickSort)
         size += max(last(span), rightmost_end) - max(first(span) - 1, rightmost_end)
         total_bp += last(span) - first(span) + 1
         rightmost_end = max(rightmost_end, last(span))
     end
-    (size, total_bp)
+    return (size, total_bp)
 end
 
 Base.show(io::IO, x::Source) = print(io, "Source(", x.name, ", ", x.length, ')')
 function Base.show(io::IO, ::MIME"text/plain", x::Source)
-    if get(io, :compact, false)
+    return if get(io, :compact, false)
         show(io, x)
     else
         print(

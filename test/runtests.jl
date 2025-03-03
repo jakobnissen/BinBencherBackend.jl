@@ -44,7 +44,7 @@ ngenomes(ref) = length(genomes(ref))
 
 @testset "Misc" begin
     @test isnan(f1(0.0, 0.0))
-    @test !isnan(f1(1e-6, 1e-6))
+    @test !isnan(f1(1.0e-6, 1.0e-6))
 end
 
 @testset "Flags" begin
@@ -63,7 +63,7 @@ end
     @test tryparse(Flag, "oRgANisM") == Flags.organism
     @test tryparse(Flag, "banana") === nothing
     @test FlagSet((tryparse(Flag, "virus"), tryparse(Flag, "organism"))) ==
-          FlagSet([Flags.organism, Flags.virus])
+        FlagSet([Flags.organism, Flags.virus])
 
     flagsets = [empt, a, b, c, d]
     all_pairs = [(i, j) for i in flagsets for j in flagsets]
@@ -87,7 +87,7 @@ end
 @testset "Construction" begin
     global ref = Reference(IOBuffer(REF_STR))
     global binning = Binning(IOBuffer(CLUSTERS_STR), ref)
-    global bins = sort!(collect(binning.bins); by=i -> i.name)
+    global bins = sort!(collect(binning.bins); by = i -> i.name)
 
     @test ref isa Reference
     @test binning isa Binning
@@ -95,7 +95,7 @@ end
 end
 
 function test_is_same_reference(a::Reference, b::Reference)
-    @test test_is_same(a, b) === nothing
+    return @test test_is_same(a, b) === nothing
 end
 
 @testset "Reference" begin
@@ -138,7 +138,7 @@ end
 end
 
 @testset "Genome" begin
-    gens = sort!(collect(genomes(ref)); by=i -> i.name)
+    gens = sort!(collect(genomes(ref)); by = i -> i.name)
     @test is_organism(gens[1])
     @test is_organism(gens[2])
     @test is_virus(gens[3])
@@ -154,7 +154,7 @@ end
 end
 
 @testset "Clade" begin
-    (gA, gB, gC) = sort!(collect(genomes(ref)); by=i -> i.name)
+    (gA, gB, gC) = sort!(collect(genomes(ref)); by = i -> i.name)
     D = gA.parent
     @test D === gB.parent
     E = gC.parent
@@ -205,10 +205,10 @@ end
     seq_pred = s -> length(s) ≥ 25
     genome_pred = !is_virus
     ref = Reference(IOBuffer(REF_STR))
-    ref2 = subset(ref; sequences=seq_pred)
-    ref3 = subset(ref; genomes=genome_pred)
-    ref4 = subset(ref3; sequences=seq_pred)
-    ref5 = subset(ref; sequences=seq_pred, genomes=genome_pred)
+    ref2 = subset(ref; sequences = seq_pred)
+    ref3 = subset(ref; genomes = genome_pred)
+    ref4 = subset(ref3; sequences = seq_pred)
+    ref5 = subset(ref; sequences = seq_pred, genomes = genome_pred)
 
     refs = (ref, ref2, ref3, ref4, ref5)
     for i in 1:4, j in (i + 1):5
@@ -220,15 +220,15 @@ end
 
     @test (
         top_clade(ref3).ngenomes + 1 ==
-        top_clade(ref4).ngenomes + 1 ==
-        top_clade(ref5).ngenomes + 1 ==
-        top_clade(ref).ngenomes
+            top_clade(ref4).ngenomes + 1 ==
+            top_clade(ref5).ngenomes + 1 ==
+            top_clade(ref).ngenomes
     )
 
     # Test subsetting preserves relationship between seq names and their targets
     ref6 = deepcopy(ref)
     trgs_of = Dict(name => ref6.targets[i] for (name, i) in ref6.target_index_by_name)
-    subset!(ref6; sequences=seq_pred)
+    subset!(ref6; sequences = seq_pred)
     @test all(ref6.target_index_by_name) do (name, i)
         ref6.targets[i] === trgs_of[name]
     end
@@ -240,6 +240,7 @@ function test_is_same_binning(a::Binning, b::Binning)
     for field in [:recovered_asms, :recovered_genomes, :recalls, :precisions]
         @test getfield(a, field) == getfield(b, field)
     end
+    return
 end
 
 @testset "Binning" begin
@@ -250,8 +251,8 @@ end
     @test n_bins(bins) == 6
 
     @test n_recovered(bins, 0.4, 0.71) == 1
-    @test n_recovered(bins, 0.4, 0.71; assembly=true) == 2
-    @test n_recovered(bins, 0.4, 0.71; assembly=true, level=2) == 1
+    @test n_recovered(bins, 0.4, 0.71; assembly = true) == 2
+    @test n_recovered(bins, 0.4, 0.71; assembly = true, level = 2) == 1
 
     allgenomes = collect(genomes(ref))
     for (ir, recall) in enumerate(bins.recalls)
@@ -260,7 +261,7 @@ end
                 [(true, bins.recovered_asms), (false, bins.recovered_genomes)]
                 found = falses(length(allgenomes))
                 for (ig, genome) in enumerate(allgenomes), bin in bins.bins
-                    (nr, np) = recall_precision(genome, bin; assembly=asm)
+                    (nr, np) = recall_precision(genome, bin; assembly = asm)
                     found[ig] |= (nr >= recall && np >= precision)
                 end
                 @test sum(found) == mats[1][ip, ir]
@@ -268,7 +269,7 @@ end
                 for (rank, mat) in zip(ref.clades, mats[2:end])
                     found = falses(length(rank))
                     for bin in bins.bins, (ic, clade) in enumerate(rank)
-                        (nr, np) = recall_precision(clade, bin; assembly=asm)
+                        (nr, np) = recall_precision(clade, bin; assembly = asm)
                         found[ic] |= (nr >= recall && np >= precision)
                     end
                     @test sum(found) == mat[ip, ir]
@@ -278,14 +279,14 @@ end
     end
 
     # Test filter_genomes works
-    empty_binning = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes=Returns(false))
+    empty_binning = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes = Returns(false))
     @test n_recovered(empty_binning, 0.1, 0.1) == 0
     @test all(m -> all(iszero, m), empty_binning.recovered_asms)
     @test all(m -> all(iszero, m), empty_binning.recovered_genomes)
 
-    only_virus = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes=is_virus)
+    only_virus = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes = is_virus)
     @test BinBencherBackend.n_nc(only_virus) == 0
-    @test n_recovered(only_virus, 0.1, 0.1; assembly=true) == 1
+    @test n_recovered(only_virus, 0.1, 0.1; assembly = true) == 1
 
     # This test depends on the exact state of the ref and binning used
     @test all(m -> all(isone, m), only_virus.recovered_asms)
@@ -303,8 +304,8 @@ end
 @testset "Gold standard" begin
     ref = Reference(IOBuffer(REF_STR))
     gold_standards = [
-        gold_standard(ref; disjoint=true)
-        gold_standard(ref; disjoint=false)
+        gold_standard(ref; disjoint = true)
+        gold_standard(ref; disjoint = false)
     ]
     for bins in gold_standards
         @test bins isa Binning
