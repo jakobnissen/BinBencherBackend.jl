@@ -90,12 +90,17 @@ class	Clostridia	Bacillota
 ```
 This specifies the full lineage of all three genomes up to a single universal ancestor of all the genomes (Bacillota, in this case).
 
+The file must follow these rules:
+* Every genome must be present in the taxonomy
+* Every child has no more than one parent
+* No ranks may be skipped: The parent of a genus is always a family, never e.g. an order
+
 #### Using NCBI for easier taxonomy
 It may be annoying to specify the full phylogenetic tree of all clades in the taxonomy file.
 To ease it, the parent may instead be listed as `id=XXXX`, where `XXXX` is an NCBI taxonomy ID on the parent rank.
 BinBencher will then fill up all higher ranks automatically.
 To enable this, `--tax-ncbi` must be passed on the command line to a file that contains a list of all known NCBI taxonomies.
-A link to this file can be found at the BinBencher github repo.
+A link to this file can be found at the BinBencher github repo [on the releases page](https://github.com/jakobnissen/BinBencher.jl/releases/).
 So, the taxonomy file above can more easily be written as:
 
 ```

@@ -2,10 +2,10 @@ struct Unsafe end
 const unsafe = Unsafe()
 
 function tab_pairs(lines)
-    lines |>
-    imap(strip) |>
-    ifilter(!isempty) |>
-    imap() do line
+    return lines |>
+        imap(strip) |>
+        ifilter(!isempty) |>
+        imap() do line
         cu = codeunits(line)
         t1 = findfirst(isequal(UInt8('\t')), cu)
         t1 === nothing && error(lazy"No tabs in line $line")
@@ -18,7 +18,7 @@ function tab_pairs(lines)
 end
 
 function binsplit_tab_pairs(t_pairs, sep::Union{Char, AbstractString})
-    t_pairs |> imap() do (binname, seqname)
+    return t_pairs |> imap() do (binname, seqname)
         p = findfirst(sep, seqname)
         p === nothing && error(lazy"Seperator $sep not found in seq name $seqname")
         before = SubString(seqname, 1:last(p))
@@ -29,15 +29,15 @@ function binsplit_tab_pairs(t_pairs, sep::Union{Char, AbstractString})
 end
 
 function open_perhaps_gzipped(f::Function, path::String)
-    if endswith(path, ".gz")
-        stream = GzipDecompressorStream(open(path; lock=false))
+    return if endswith(path, ".gz")
+        stream = GzipDecompressorStream(open(path; lock = false))
         try
             f(stream)
         finally
             close(stream)
         end
     else
-        open(f, path; lock=false)
+        open(f, path; lock = false)
     end
 end
 
@@ -55,14 +55,14 @@ function is_valid_bb_identifier(s::Union{String, SubString{String}})
     for i in codeunits(s)
         is_valid &= iszero(BB_IDENTIFIER_MASK & (UInt64(1) << (i & 63))) | (i > 63)
     end
-    is_valid
+    return is_valid
 end
 
 function check_valid_identifier(s::Union{String, SubString{String}})
     if !is_valid_bb_identifier(s)
         error(lazy"Invalid identifier containing \t, \r or \n: \"$(s)\"")
     end
-    s
+    return s
 end
 
 # This function exists in order to be able to use a Set

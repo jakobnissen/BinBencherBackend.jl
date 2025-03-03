@@ -30,15 +30,15 @@ ifilter(f) = x -> Iterators.filter(f, x)
         ref = open(refpath) do io
             Reference(io)
         end
-        subset!(ref; sequences=Returns(true), genomes=Returns(true))
+        subset!(ref; sequences = Returns(true), genomes = Returns(true))
         gold_standard(ref)
         bins = open(binpath) do io
             Binning(io, ref)
         end
         print_matrix(IOBuffer(), bins)
         n_recovered(bins, 0.4, 0.2)
-        n_recovered(bins, 0.4, 0.2; assembly=false)
-        n_recovered(bins, 0.4, 0.2; level=1)
+        n_recovered(bins, 0.4, 0.2; assembly = false)
+        n_recovered(bins, 0.4, 0.2; level = 1)
     end
 end
 
