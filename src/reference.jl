@@ -324,7 +324,33 @@ StructTypes.StructType(::Type{ReferenceJSON}) = StructTypes.Struct()
 
 Reference(path::AbstractString) = open_perhaps_gzipped(i -> Reference(i), String(path))
 
-Reference(io::IO) = Reference(JSON3.read(io, ReferenceJSON))
+function Reference(io::IO)
+    # First, determine the version of the JSON file to see if this version of BBB
+    # can even deserialize it.
+    # Currently, JSON3 doesn't support building custom types from already-parsed JSON
+    # objects. Therefore, we attempt to use a regex to find the version so we don't
+    # need to parse the whole JSON object two times
+    str = read(io, String)
+    m = match(r"^\s*{\s*\"version\":\s*(\d+)\s*,?}?", str)
+    version = if m === nothing
+        # It's not possible to generically parse JSON using regex, so even if our
+        # regex fails, it might still be valid (for example, "version" could be present,
+        # but not the first field.).
+        # So, if the fast regex match fails, we try to parse the whole JSON to get the version.
+        # This means we'll parse the whole reference twice which is wasteful
+        json = JSON3.read(str)
+        json[:version]::Int
+    else
+        parse(Int, m.captures[1])::Int
+    end
+    if version != JSON_VERSION
+        error(
+            lazy"Found reference version $(version), but the supported version of the ",
+            lazy"currently loaded version of BinBencherBackend is $(JSON_VERSION)."
+        )
+    end
+    return Reference(JSON3.read(str, ReferenceJSON))
+end
 
 function Reference(json_struct::ReferenceJSON)
     if json_struct.version != JSON_VERSION

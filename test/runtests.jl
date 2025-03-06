@@ -109,6 +109,9 @@ end
     test_is_same_reference(ref, ref2)
     ref3 = Reference(REF_PATH)
     test_is_same_reference(ref, ref3)
+
+    # Test versions
+    @test_throws "Found reference version 1" Reference(joinpath(DIR, "ref_v1.json"))
 end
 
 @testset "Sequence" begin
