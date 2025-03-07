@@ -260,8 +260,7 @@ function parse_bins(
         ::Type{Dict},
         ref::Reference,
         binsplit_sep::Union{Nothing, AbstractString, Char} = nothing,
-        disjoint::Bool = true,
-    )::Dict{<:AbstractString, <:Vector{<:Integer}}
+    )::Tuple{Dict{<:AbstractString, <:Vector{<:Integer}}, Bool}
     lines = eachline(io)
     header = "clustername\tcontigname"
     it = iterate(lines)
@@ -272,16 +271,16 @@ function parse_bins(
     itr = isnothing(binsplit_sep) ? itr : binsplit_tab_pairs(itr, binsplit_sep)
     seen_indices = falses(length(ref.targets))
     idxs_by_binname = Dict{SubString{String}, Vector{UInt32}}()
+    is_disjoint = true
     @inbounds for (binname, seqname) in itr
         i = ref.target_index_by_name[seqname]
         if seen_indices[i]
-            name = first(ref.targets[i]).name
-            error(lazy"Sequence \"$(name)\" seen twice in disjoint Binning")
+            is_disjoint = false
         end
         seen_indices[i] = true
         push!(get!(valtype(idxs_by_binname), idxs_by_binname, binname), i)
     end
-    return idxs_by_binname
+    return (idxs_by_binname, is_disjoint)
 end
 
 const JSON_VERSION = 2
