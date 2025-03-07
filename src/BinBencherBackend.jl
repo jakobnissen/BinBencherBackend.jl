@@ -75,6 +75,7 @@ export Sequence,
     mrca,
     ancestors,
     descends_from,
-    print_matrix
+    print_matrix,
+    is_disjoint
 
 end # module

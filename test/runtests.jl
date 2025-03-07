@@ -25,7 +25,8 @@ using BinBencherBackend:
     n_seqs,
     n_bins,
     subset,
-    subset!
+    subset!,
+    is_disjoint
 
 using CodecZlib: GzipCompressor
 using JSONSchema: JSONSchema
@@ -302,6 +303,9 @@ end
     @test bins.bin_genome_stats.mean_bin_precision ≈ 1
     @test bins.bin_asm_stats.mean_bin_recall ≈ 0.636734693877551
     @test bins.bin_asm_stats.mean_bin_precision ≈ 1
+
+    # Test is disjoint
+    @test is_disjoint(bins)
 end
 
 @testset "Gold standard" begin
@@ -310,9 +314,10 @@ end
         gold_standard(ref; disjoint = true)
         gold_standard(ref; disjoint = false)
     ]
-    for bins in gold_standards
+    for (disjoint, bins) in zip([true, false], gold_standards)
         @test bins isa Binning
         @test n_bins(bins) == ngenomes(ref)
+        @test is_disjoint(bins) == disjoint
     end
 end
 

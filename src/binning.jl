@@ -98,6 +98,7 @@ struct Binning
     precisions::Vector{Float64}
     bin_asm_stats::BinStats
     bin_genome_stats::BinStats
+    is_disjoint::Bool
 end
 
 function Base.show(io::IO, x::Binning)
@@ -289,8 +290,14 @@ end
 
 n_bins(x::Binning) = length(x.bins)
 
+is_disjoint(x::Binning) = x.is_disjoint
+
 function Binning(path::AbstractString, ref::Reference; kwargs...)
     return open_perhaps_gzipped(io -> Binning(io, ref; kwargs...), String(path))
+end
+
+@noinline function throw_disjoint_error()
+    throw(ArgumentError("Binning is not disjoint, but `disjoint` set to `true`"))
 end
 
 # This is the most common constructor in practice, because we usually load binnings from files,
@@ -308,7 +315,8 @@ function Binning(
         filter_genomes::Function = Returns(true),
         filter_bins::Function = Returns(true),
     )
-    idxs_by_binname = parse_bins(io, Dict, ref, binsplit_separator, disjoint)
+    (idxs_by_binname, is_disjoint) = parse_bins(io, Dict, ref, binsplit_separator)
+    disjoint && !is_disjoint && throw_disjoint_error()
     filter!(idxs_by_binname) do (_, idxs)
         length(idxs) ≥ min_seqs &&
             sum((length(first(ref.targets[i])) for i in idxs); init = 0) ≥ min_size
@@ -316,8 +324,7 @@ function Binning(
     considered_genomes = _filter_genomes(filter_genomes, ref)
     bins = _getbins(ref, considered_genomes, idxs_by_binname)
     filter_bins === Returns(true) || filter!(filter_bins, bins)
-    # We already checked for disjointedness when parsing bins, so we skip it here
-    return Binning(bins, ref; recalls, precisions, disjoint = false)
+    return _binning(bins, ref, recalls, precisions, is_disjoint)
 end
 
 function _filter_genomes(f::Function, ref::Reference)::Union{Nothing, Set{Genome}}
@@ -332,13 +339,14 @@ function _getbins(
         ref::Reference,
         considered_genomes::Union{Nothing, Set{Genome}},
         idxs_by_binname::Dict{SubString{String}, Vector{UInt32}},
-    )
+    )::Vector{Bin}
     scratch = Tuple{Int, Int}[]
     return [
         bin_by_indices(binname, seq_idxs, ref.targets, scratch, considered_genomes)::Bin for
             (binname, seq_idxs) in idxs_by_binname
     ]
 end
+
 
 """
     Binning(bins::Vector{Bin}, ref::Reference; kwargs...)
@@ -361,10 +369,21 @@ function Binning(
         precisions = DEFAULT_PRECISIONS,
         disjoint::Bool = true,
     )
+    is_disjoint = check_disjoint(bins)
+    disjoint && !is_disjoint && throw_disjoint_error()
+    return _binning(bins, ref, recalls, precisions, is_disjoint)
+end
+
+function _binning(
+        bins::Vector{Bin},
+        ref::Reference,
+        recalls,
+        precisions,
+        is_disjoint::Bool,
+    )
     sort!(bins; by = i -> i.name)
     checked_recalls = validate_recall_precision(recalls)
     checked_precisions = validate_recall_precision(precisions)
-    disjoint && check_disjoint(bins)
     bin_asm_stats = BinStats(bins; assembly = true)
     bin_genome_stats = BinStats(bins; assembly = false)
     (asm_matrices, genome_matrices, bin_asms, bin_genomes) =
@@ -380,6 +399,7 @@ function Binning(
         checked_precisions,
         bin_asm_stats,
         bin_genome_stats,
+        is_disjoint,
     )
 end
 
@@ -439,7 +459,7 @@ function gold_standard(
         end
     end
     scratch = Tuple{Int, Int}[]
-    bins = [
+    bins::Vector{Bin} = [
         bin_by_indices(
                 "bin_" * genome.name,
                 [ref.target_index_by_name[i.name] for i in seqs],
@@ -456,10 +476,9 @@ function check_disjoint(bins)
     nseq = sum(i -> length(i.sequences), bins; init = 0)
     seen_seqs = sizehint!(Set{Sequence}(), nseq)
     for bin in bins, seq in bin.sequences
-        in!(seen_seqs, seq) &&
-            error(lazy"Sequence \"$(seq.name)\" seen twice in disjoint Binning")
+        in!(seen_seqs, seq) && return false
     end
-    return nothing
+    return true
 end
 
 function validate_recall_precision(xs)::Vector{Float64}

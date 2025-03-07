@@ -86,7 +86,7 @@ function bin_by_indices(
         targets::Vector{Tuple{Sequence, Vector{Target}}},
         scratch::Vector{Tuple{Int, Int}},
         considered_genomes::Union{Nothing, Set{Genome}},
-    )
+    )::Bin
     seqs = [first(targets[i]) for i in seq_indices]
 
     # Which sequences map to the given genome, ints in bitset is indices into `seqs`.
