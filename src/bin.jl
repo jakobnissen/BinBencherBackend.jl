@@ -88,6 +88,7 @@ function bin_by_indices(
         considered_genomes::Union{Nothing, Set{Genome}},
     )::Bin
     seqs = [first(targets[i]) for i in seq_indices]
+    isempty(seqs) && error("Cannot construct empty Bin")
 
     # Which sequences map to the given genome, ints in bitset is indices into `seqs`.
     genome_mapping = Dict{Genome, BitSet}()

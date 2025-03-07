@@ -712,3 +712,110 @@ function make_columnwise_reverse_cumulative!(m::Matrix{<:Real})
     end
     return
 end
+
+"""
+    adjusted_rand_index(a::Binning, b::Binning) -> Float64
+
+Compute the adjusted rand index (ARI) between two binnings `a` and `b`.
+
+The result is a real number between 0.0 and 1.0, inclusive.
+The binnings must use the same reference, and must be disjoint.
+
+!!! note
+    The ARI is computed in terms of sequences basepairs, not genomic positions,
+    unlike the other metrics reported by this package.
+
+# Examples
+```jldoctest
+julia> adjusted_rand_index(binning, binning)
+1.0
+
+julia> adjusted_rand_index(binning, gold_standard(ref))
+0.4283752695493192
+```
+"""
+function adjusted_rand_index(a::Binning, b::Binning)
+    # See the end of the function for the definition of ARI, to see what e.g. a_sums mean.
+
+    if a.ref !== b.ref
+        throw(ArgumentError("To compute ARI, the two binnings must have the same reference"))
+    end
+
+    if !is_disjoint(a) || !is_disjoint(b)
+        throw(ArgumentError("Binnings must be disjoint to compute ARI, but one or more is not."))
+    end
+
+    # Two empty binnings are identical
+    if isempty(a.bins) && isempty(b.bins)
+        return 1.0
+    end
+
+    ref = b.ref
+    target_index_by_name = ref.target_index_by_name
+
+    # These are not n_choose_two since these are constructed incrementally
+    a_sums = zeros(Int, n_bins(a))
+    b_sums = zeros(Int, n_bins(b))
+
+    sum_n_choose_two = 0
+    n = 0
+
+    # We store both bins and sequences as integers, to make the core algorithm faster.
+    # A missing bin is typemax(UInt32)
+    b_bin_index_of_seq_index = fill(typemax(UInt32), n_seqs(ref))
+    for (bin_index, bin) in enumerate(b.bins), sequence in bin.sequences
+        seq_index = target_index_by_name[sequence.name]
+        b_bin_index_of_seq_index[seq_index] = UInt32(bin_index)
+    end
+
+    # B Bin index => number of overlapping basepairs between bin and the current A bin.
+    bin_index_lens = Dict{Int, UInt}()
+    for (a_i, bin_a) in enumerate(a.bins)
+        # This occurs shockingly often, so is worth special casing
+        if length(bin_a.sequences) == 1
+            sequence = only(bin_a.sequences)
+            seq_index = target_index_by_name[sequence.name]
+            bin_b_index = b_bin_index_of_seq_index[seq_index]
+            bin_b_index === typemax(UInt32) && continue
+            n += length(sequence)
+            sum_n_choose_two += n_choose_two(length(sequence) % UInt)
+            a_sums[a_i] = length(sequence)
+            b_sums[bin_b_index] += length(sequence)
+        else
+            # In the general case, we count up the total basepairs that overlap
+            # for each bin.
+            # That is, for each seq in bin A, we find the corresponding bin B,
+            # where the seq is present, then add length(seq) to binA, binB overlap
+            empty!(bin_index_lens)
+            for sequence in bin_a.sequences
+                seq_index = target_index_by_name[sequence.name]
+                bin_b_index = b_bin_index_of_seq_index[seq_index]
+                bin_b_index === typemax(UInt32) && continue
+                new_len = get!(bin_index_lens, bin_b_index, UInt(0)) + length(sequence) % UInt
+                bin_index_lens[bin_b_index] = new_len
+            end
+            a_sum = 0
+            for (bin_b_index, intersection) in bin_index_lens
+                a_sum += intersection
+                b_sums[bin_b_index] += intersection
+                n += intersection
+                sum_n_choose_two += n_choose_two(intersection)
+            end
+            a_sums[a_i] = a_sum
+        end
+    end
+
+    a_sum = sum(i -> n_choose_two(UInt(i)), a_sums; init = UInt(0))
+    b_sum = sum(i -> n_choose_two(UInt(i)), b_sums; init = UInt(0))
+    n_2 = n_choose_two(UInt(n))
+
+    # If there is no overlap, either both binnings are empty (we checked that)
+    # or else there is no overlap and they are 100% distinct
+    iszero(n_2) && return 0.0
+
+    numerator = sum_n_choose_two - (a_sum * b_sum) / n_2
+    denominator = (a_sum + b_sum) / 2 - ((a_sum * b_sum) / n_2)
+
+    # Handle rounding errors
+    return clamp(numerator / denominator, 0.0, 1.0)
+end

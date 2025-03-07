@@ -244,8 +244,10 @@ function add_sequence!(ref::Reference, seq::Sequence, targets::Vector{Target})
         add_sequence!(source, seq, span)
     end
     L = length(ref.target_index_by_name)
-    if L == typemax(UInt32)
-        error("References can only hold 4294967295 sequences")
+    # We disallow a sequence with index typemax(UInt32) so we can use that number
+    # to encode a missing sequence
+    if L == typemax(UInt32) - 1
+        error("References can only hold 4294967294 sequences")
     end
     i = get!(ref.target_index_by_name, seq.name, L + 1)
     if i != L + 1
