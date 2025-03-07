@@ -76,6 +76,7 @@ export Sequence,
     ancestors,
     descends_from,
     print_matrix,
-    is_disjoint
+    is_disjoint,
+    adjusted_rand_index
 
 end # module

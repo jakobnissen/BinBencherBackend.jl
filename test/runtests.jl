@@ -26,7 +26,8 @@ using BinBencherBackend:
     n_bins,
     subset,
     subset!,
-    is_disjoint
+    is_disjoint,
+    adjusted_rand_index
 
 using CodecZlib: GzipCompressor
 using JSONSchema: JSONSchema
@@ -354,4 +355,13 @@ end
     schema = JSONSchema.Schema(String(open(read, joinpath(DIR, "schema.json"))))
     ref_data = copy(JSON.parse(REF_STR))::Dict
     @test isnothing(JSONSchema.validate(schema, ref_data))
+end
+
+@testset "Adjusted rand index" begin
+    ref = Reference(IOBuffer(REF_STR))
+    bins = Binning(IOBuffer(CLUSTERS_STR), ref)
+
+    @test adjusted_rand_index(bins, bins) === 1.0
+    ari = adjusted_rand_index(bins, gold_standard(ref))
+    @test 0.0 ≤ ari ≤ 1.0
 end

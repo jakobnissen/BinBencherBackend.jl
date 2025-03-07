@@ -74,3 +74,8 @@ function in!(s::AbstractSet, x)::Bool
     push!(s, xT)
     return length(s) == L
 end
+
+function n_choose_two(n::Unsigned)
+    n = widen(n)
+    return div(n * (n - UInt64(1)), 2)
+end
