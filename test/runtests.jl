@@ -358,10 +358,30 @@ end
 end
 
 @testset "Adjusted rand index" begin
+    # We need to make a Binning and a ref having the same sequences, so we can
+    # compare the gold standard of the ref with the binning
     ref = Reference(IOBuffer(REF_STR))
     bins = Binning(IOBuffer(CLUSTERS_STR), ref)
+    seqs_in_bin = foldl((i, j) -> union!(i, j.sequences), bins.bins; init = Set{Sequence}())
+    setdiff!(seqs_in_bin, [seq for (seq, t) in ref.targets if isempty(t)])
+    seq_names = Set([s.name for s in seqs_in_bin])
 
     @test adjusted_rand_index(bins, bins) === 1.0
-    ari = adjusted_rand_index(bins, gold_standard(ref))
+    gs = gold_standard(ref)
+    @test_throws ArgumentError adjusted_rand_index(bins, gs)
+    ari = adjusted_rand_index(bins, gs; intersection = true)
     @test 0.0 ≤ ari ≤ 1.0
+
+    ref2 = subset(ref; sequences = in(seqs_in_bin))
+    lines = filter(collect(eachline(IOBuffer(CLUSTERS_STR)))) do line
+        name = split(line, '\t')[2]
+        name == "contigname" || in(name, seq_names)
+    end
+
+    bins = Binning(IOBuffer(join(lines, '\n')), ref2)
+    ari = adjusted_rand_index(bins, gold_standard(ref2))
+    @test 0.0 ≤ ari ≤ 1.0
+
+    # TODO: Make a ref and a bins, measure ARI with Clusterings.jl
+    # and compare.
 end
