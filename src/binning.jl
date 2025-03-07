@@ -399,6 +399,17 @@ If `disjoint`, assign each sequence to only a single genome.
 If `sequences` is not passed, use all sequences in `ref`. If a `Binning` is passed,
 use all sequences in any of its bins. Else, pass an iterable of `Sequence`.
 
+# Examples
+```jldoctest
+julia> gs = gold_standard(ref);
+
+julia> gs isa Binning
+true
+
+julia> n_recovered(gs, 0.4, 0.71) >= n_recovered(binning, 0.4, 0.71)
+true
+```
+
 # Extended help
 Currently, the `disjoint` option uses a simple greedy algorithm to assign
 sequences to genomes.
