@@ -290,6 +290,21 @@ end
 
 n_bins(x::Binning) = length(x.bins)
 
+"""
+    is_disjoint(::Binning) -> Bool
+
+Check if the `Binning` is disjoint, i.e. if every sequence in the binning
+is present in only one bin.
+
+# Examples
+```jldoctest
+julia> is_disjoint(binning)
+true
+
+julia> is_disjoint(gold_standard(ref; disjoint=false))
+false
+```
+"""
 is_disjoint(x::Binning) = x.is_disjoint
 
 function Binning(path::AbstractString, ref::Reference; kwargs...)
