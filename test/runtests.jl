@@ -382,6 +382,51 @@ end
     ari = adjusted_rand_index(bins, gold_standard(ref2))
     @test 0.0 ≤ ari ≤ 1.0
 
-    # TODO: Make a ref and a bins, measure ARI with Clusterings.jl
-    # and compare.
+    # Compare to a known ARI
+    refstr = """
+    {
+        "version": 2,
+        "taxmaps": [[["A", "X"], ["B", "X"], ["C", "X"], ["D", "X"]]],
+        "genomes": [
+            ["A", 1, [["A", 5]]],
+            ["B", 1, [["B", 5]]],
+            ["C", 1, [["C", 5]]],
+            ["D", 1, [["D", 5]]]
+        ],
+        "sequences": [
+            ["s0", 1, [["A",1,1]]],
+            ["s1", 2, [["A",2,3]]],
+            ["s2", 1, [["B",1,1]]],
+            ["s3", 1, [["B",2,2]]],
+            ["s4", 3, [["C",1,3]]],
+            ["s5", 1, [["C",4,4]]],
+            ["s6", 1, [["D",1,1]]],
+            ["s7", 2, [["D",2,3]]],
+            ["s8", 1, [["D",4,4]]],
+            ["s9", 1, [["D",5,5]]]
+        ]
+    }
+    """
+    cstr = """clustername\tcontigname
+    a\ts0
+    b\ts1
+    c\ts2
+    c\ts3
+    d\ts4
+    e\ts5
+    f\ts6
+    g\ts7
+    g\ts8
+    g\ts9
+    """
+
+    ref = Reference(IOBuffer(refstr))
+    binning = Binning(IOBuffer(cstr), ref)
+
+    # Equivalent to this clustering
+    # [1,1,1,2,2,3,3,3,3,4,4,4,4,4]
+    # [1,2,2,3,3,4,4,4,5,6,7,7,7,7]
+    # Hard coded value obtained using Clustering.jl's randindex
+
+    isapprox(adjusted_rand_index(binning, gold_standard(ref)), 0.6560268794624108)
 end

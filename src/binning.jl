@@ -757,7 +757,7 @@ julia> adjusted_rand_index(binning, binning)
 1.0
 
 julia> adjusted_rand_index(binning, gold_standard(ref); intersection=true)
-0.697002793022142
+0.4283752695493192
 
 julia> adjusted_rand_index(binning, gold_standard(ref))
 ERROR: ArgumentError: Binnings do not have the same sequences
@@ -797,7 +797,7 @@ function adjusted_rand_index(a::Binning, b::Binning; intersection::Bool = false)
 
     # This vector is not n_choose_two since it is filled incrementally
     b_sums = zeros(UInt, n_bins(b))
-    a_sum = 0
+    a_sum_choose_two = 0
     sum_n_choose_two = 0
     n = 0
 
@@ -817,12 +817,12 @@ function adjusted_rand_index(a::Binning, b::Binning; intersection::Bool = false)
             sequence = only(bin_a.sequences)
             seq_index = target_index_by_name[sequence.name]
             bin_b_index = b_bin_index_of_seq_index[seq_index]
-            if bin_b_index === typemax(UInt32)
+            if bin_b_index == typemax(UInt32)
                 intersection ? continue : throw_different_binnings_error()
             end
             n += length(sequence)
             sum_n_choose_two += n_choose_two(length(sequence) % UInt)
-            a_sum += n_choose_two(length(sequence) % UInt)
+            a_sum_choose_two += n_choose_two(length(sequence) % UInt)
             b_sums[bin_b_index] += length(sequence) % UInt
         else
             # In the general case, we count up the total basepairs that overlap
@@ -833,7 +833,7 @@ function adjusted_rand_index(a::Binning, b::Binning; intersection::Bool = false)
             for sequence in bin_a.sequences
                 seq_index = target_index_by_name[sequence.name]
                 bin_b_index = b_bin_index_of_seq_index[seq_index]
-                if bin_b_index === typemax(UInt32)
+                if bin_b_index == typemax(UInt32)
                     intersection ? continue : throw_different_binnings_error()
                 end
                 new_len = get!(bin_index_lens, bin_b_index, UInt(0)) + length(sequence) % UInt
@@ -846,19 +846,22 @@ function adjusted_rand_index(a::Binning, b::Binning; intersection::Bool = false)
                 n += intersection
                 sum_n_choose_two += n_choose_two(intersection)
             end
-            a_sum += n_choose_two(a_sum % UInt)
+            a_sum_choose_two += n_choose_two(a_sum % UInt)
         end
     end
 
-    b_sum = sum(i -> n_choose_two(i), b_sums; init = UInt(0))
+    b_sum_choose_two = sum(i -> n_choose_two(i), b_sums; init = UInt(0))
     n_2 = n_choose_two(n % UInt)
 
     # If there is no overlap, either both binnings are empty (we checked that)
     # or else there is no overlap and they are 100% distinct
     iszero(n_2) && return 0.0
 
-    numerator = sum_n_choose_two - (a_sum * b_sum) / n_2
-    denominator = (a_sum + b_sum) / 2 - ((a_sum * b_sum) / n_2)
+    numerator = sum_n_choose_two - (a_sum_choose_two * b_sum_choose_two) / n_2
+    denominator = (
+        (a_sum_choose_two + b_sum_choose_two) / 2 -
+            ((a_sum_choose_two * b_sum_choose_two) / n_2)
+    )
 
     # Handle rounding errors
     return clamp(numerator / denominator, -0.5, 1.0)
