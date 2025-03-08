@@ -728,28 +728,45 @@ function make_columnwise_reverse_cumulative!(m::Matrix{<:Real})
     return
 end
 
+@noinline function throw_different_binnings_error()
+    throw(ArgumentError("Binnings do not have the same sequences"))
+end
+
 """
-    adjusted_rand_index(a::Binning, b::Binning) -> Float64
+    adjusted_rand_index(Binning, Binning; intersection::Bool=false) -> Float64
 
-Compute the adjusted rand index (ARI) between two binnings `a` and `b`.
-
-The result is a real number between 0.0 and 1.0, inclusive.
+Compute the adjusted rand index (ARI) between two binnings.
+The result is a real number between -0.5 and 1.0, inclusive.
 The binnings must use the same reference, and must be disjoint.
 
-!!! note
-    The ARI is computed in terms of sequences basepairs, not genomic positions,
-    unlike the other metrics reported by this package.
+If `intersection` is `false` (the default), an `ArgumentError` is thrown if the two binnings
+do not contain exactly the same sequences. If `true`, ARI will be computed over
+only the sequences the two binnings have in common, and the others will be ignored.
+
+To compute the ARI against the ground truth of a reference `ref`, compare to the result
+of `gold_standard(ref)` 
+
+!!! warning
+    ARI is generally not an appropriate metric for evaluating binnings, and is only
+    included in this package for comprehensiveness.
+    See [the section on ARI in the documentation](@ref ari) for more details.
 
 # Examples
 ```jldoctest
 julia> adjusted_rand_index(binning, binning)
 1.0
 
+julia> adjusted_rand_index(binning, gold_standard(ref); intersection=true)
+0.697002793022142
+
 julia> adjusted_rand_index(binning, gold_standard(ref))
-0.4283752695493192
+ERROR: ArgumentError: Binnings do not have the same sequences
+[...]
+
 ```
+See also: [`gold_standard`](@ref), [`is_disjoint`](@ref)
 """
-function adjusted_rand_index(a::Binning, b::Binning)
+function adjusted_rand_index(a::Binning, b::Binning; intersection::Bool = false)
     # See the end of the function for the definition of ARI, to see what e.g. a_sums mean.
 
     if a.ref !== b.ref
@@ -765,13 +782,22 @@ function adjusted_rand_index(a::Binning, b::Binning)
         return 1.0
     end
 
+    # Test the binnings have the same sequences.
+    # ARI is invalid if the set of sequences in the two binnings are not identical.
+    # First, we check they both are disjoint. Then, that they have the same number of seqs.
+    # Finally, further below, for each seq in `a`, we check it's present in `b`.
+    # That is sufficient to check the set of sequences are the same.
+    if !intersection
+        n_sequences(x::Binning) = sum(i -> length(i.sequences), x.bins; init = 0)
+        n_sequences(a) == n_sequences(b) || throw_different_binnings_error()
+    end
+
     ref = b.ref
     target_index_by_name = ref.target_index_by_name
 
-    # These are not n_choose_two since these are constructed incrementally
-    a_sums = zeros(Int, n_bins(a))
-    b_sums = zeros(Int, n_bins(b))
-
+    # This vector is not n_choose_two since it is filled incrementally
+    b_sums = zeros(UInt, n_bins(b))
+    a_sum = 0
     sum_n_choose_two = 0
     n = 0
 
@@ -780,22 +806,24 @@ function adjusted_rand_index(a::Binning, b::Binning)
     b_bin_index_of_seq_index = fill(typemax(UInt32), n_seqs(ref))
     for (bin_index, bin) in enumerate(b.bins), sequence in bin.sequences
         seq_index = target_index_by_name[sequence.name]
-        b_bin_index_of_seq_index[seq_index] = UInt32(bin_index)
+        b_bin_index_of_seq_index[seq_index] = bin_index % UInt32
     end
 
     # B Bin index => number of overlapping basepairs between bin and the current A bin.
     bin_index_lens = Dict{Int, UInt}()
-    for (a_i, bin_a) in enumerate(a.bins)
+    for bin_a in a.bins
         # This occurs shockingly often, so is worth special casing
         if length(bin_a.sequences) == 1
             sequence = only(bin_a.sequences)
             seq_index = target_index_by_name[sequence.name]
             bin_b_index = b_bin_index_of_seq_index[seq_index]
-            bin_b_index === typemax(UInt32) && continue
+            if bin_b_index === typemax(UInt32)
+                intersection ? continue : throw_different_binnings_error()
+            end
             n += length(sequence)
             sum_n_choose_two += n_choose_two(length(sequence) % UInt)
-            a_sums[a_i] = length(sequence)
-            b_sums[bin_b_index] += length(sequence)
+            a_sum += n_choose_two(length(sequence) % UInt)
+            b_sums[bin_b_index] += length(sequence) % UInt
         else
             # In the general case, we count up the total basepairs that overlap
             # for each bin.
@@ -805,7 +833,9 @@ function adjusted_rand_index(a::Binning, b::Binning)
             for sequence in bin_a.sequences
                 seq_index = target_index_by_name[sequence.name]
                 bin_b_index = b_bin_index_of_seq_index[seq_index]
-                bin_b_index === typemax(UInt32) && continue
+                if bin_b_index === typemax(UInt32)
+                    intersection ? continue : throw_different_binnings_error()
+                end
                 new_len = get!(bin_index_lens, bin_b_index, UInt(0)) + length(sequence) % UInt
                 bin_index_lens[bin_b_index] = new_len
             end
@@ -816,13 +846,12 @@ function adjusted_rand_index(a::Binning, b::Binning)
                 n += intersection
                 sum_n_choose_two += n_choose_two(intersection)
             end
-            a_sums[a_i] = a_sum
+            a_sum += n_choose_two(a_sum % UInt)
         end
     end
 
-    a_sum = sum(i -> n_choose_two(UInt(i)), a_sums; init = UInt(0))
-    b_sum = sum(i -> n_choose_two(UInt(i)), b_sums; init = UInt(0))
-    n_2 = n_choose_two(UInt(n))
+    b_sum = sum(i -> n_choose_two(i), b_sums; init = UInt(0))
+    n_2 = n_choose_two(n % UInt)
 
     # If there is no overlap, either both binnings are empty (we checked that)
     # or else there is no overlap and they are 100% distinct
@@ -832,5 +861,5 @@ function adjusted_rand_index(a::Binning, b::Binning)
     denominator = (a_sum + b_sum) / 2 - ((a_sum * b_sum) / n_2)
 
     # Handle rounding errors
-    return clamp(numerator / denominator, 0.0, 1.0)
+    return clamp(numerator / denominator, -0.5, 1.0)
 end

@@ -35,6 +35,7 @@ makedocs(;
             "Walkthrough" => "walkthrough.md",
             "API Reference" => "reference.md",
         ],
+        "Benchmarking considerations" => "considerations.md",
     ],
     checkdocs = :exports,
     # doctest = :fix,
