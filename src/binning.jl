@@ -422,6 +422,7 @@ end
     gold_standard(
         ref::Reference
         [sequences, a Binning or an iterable of Sequence];
+        binsplit_separator::Union{AbstractString, Char, Nothing}=nothing,
         disjoint=true,
         recalls=DEFAULT_RECALLS,
         precisions=DEFAULT_PRECISIONS
@@ -450,31 +451,33 @@ Currently, the `disjoint` option uses a simple greedy algorithm to assign
 sequences to genomes.
 """
 function gold_standard(ref::Reference; kwargs...)::Binning
-    return gold_standard(ref, Set(first(v) for v in ref.targets)::Set{Sequence}; kwargs...)
+    return gold_standard(ref, [first(v) for v in ref.targets]; kwargs...)
 end
 
 function gold_standard(ref::Reference, binning::Binning; kwargs...)::Binning
-    seqs::Set{Sequence} = reduce(binning.bins; init = Set{Sequence}()) do s, bin
-        union!(s, bin.sequences)
+    seqs = reduce(binning.bins; init = Sequence[]) do v, bin
+        append!(v, bin.sequences)
     end
+    is_disjoint(binning) || unique!(seqs)
     return gold_standard(ref, seqs; kwargs...)
-end
-
-function gold_standard(ref::Reference, sequences; kwargs...)::Binning
-    return gold_standard(ref, Set(sequences)::Set{Sequence}; kwargs...)
 end
 
 function gold_standard(
         ref::Reference,
-        sequences::Set{Sequence};
+        sequences; # iterable of Sequence
+        binsplit_separator::Union{AbstractString, Char, Nothing} = nothing,
         disjoint::Bool = true,
         recalls = DEFAULT_RECALLS,
         precisions = DEFAULT_PRECISIONS,
     )::Binning
-    sequences_of_genome = Dict{Genome, Set{Sequence}}()
+
+    # First, assign each sequence to the genome(s) it maps to - only one if disjoint,
+    # else all the genomes it maps to.
+    sequences_of_genome = Dict{Genome, Vector{Sequence}}()
     for sequence in sequences
         targets = last(ref.targets[ref.target_index_by_name[sequence.name]])
         isempty(targets) && continue
+        # If not disjoint, pick the genome where the sequence aligns to the longest span
         best_index = disjoint ? last(findmax(i -> length(last(i)), targets)) : 0
         for (i, (source, _)) in enumerate(targets)
             disjoint && i != best_index && continue
@@ -484,18 +487,42 @@ function gold_standard(
             )
         end
     end
+    # Now, build the bins. Use the binsplit iterator if given.
+    bins = Bin[]
     scratch = Tuple{Int, Int}[]
-    bins::Vector{Bin} = [
-        bin_by_indices(
-                "bin_" * genome.name,
-                [ref.target_index_by_name[i.name] for i in seqs],
-                ref.targets,
-                scratch,
-                nothing,
-            ) for (genome, seqs) in sequences_of_genome
-    ]
-    sort!(bins; by = i -> i.name)
-    return Binning(bins, ref; recalls = recalls, precisions = precisions, disjoint = false)
+    binnames_indices = Tuple{String, Vector{UInt32}}[] # indices in ref.targets
+    # Used when binsplitting. Values are the indices of the seqs.
+    seqs_by_sample = Dict{SubString{String}, Vector{UInt32}}()
+    for (genome, seqs) in sequences_of_genome
+        # If not disjoint, then we could have the same sequence mapping to two locations
+        # in the same genome. However, we don't want the same bin to contain the same sequence
+        # multiple times, even when !disjoint, so we remove duplicates here.
+        disjoint || unique!(seqs)
+        empty!(binnames_indices)
+        if isnothing(binsplit_separator)
+            push!(binnames_indices, ("bin_" * genome.name, [ref.target_index_by_name[i.name] for i in seqs]))
+        else
+            empty!(seqs_by_sample)
+            for sequence in seqs
+                splt = @inline split_once(sequence.name, binsplit_separator)
+                (prefix, _) = @something splt error(
+                    lazy"Seperator $binsplit_separator not found in seq name $(sequence.name)"
+                )
+                index = ref.target_index_by_name[sequence.name]
+                push!(get!(valtype(seqs_by_sample), seqs_by_sample, prefix), index)
+            end
+            for (prefix, indices) in seqs_by_sample
+                push!(binnames_indices, ("bin_" * prefix * genome.name, indices))
+            end
+        end
+        for (name, indices) in binnames_indices
+            bin = bin_by_indices(name, indices, ref.targets, scratch, nothing)
+            push!(bins, bin)
+        end
+    end
+    # Even if we don't force it to be disjoint, it still could be
+    bins_are_disjoint = disjoint ? true : check_disjoint(bins)
+    return _binning(bins, ref, recalls, precisions, bins_are_disjoint)
 end
 
 function check_disjoint(bins)
@@ -744,7 +771,8 @@ do not contain exactly the same sequences. If `true`, ARI will be computed over
 only the sequences the two binnings have in common, and the others will be ignored.
 
 To compute the ARI against the ground truth of a reference `ref`, compare to the result
-of `gold_standard(ref)` 
+of `gold_standard(ref)`.
+Note that if the input binning is binsplit, consider also binsplitting the gold standard.
 
 !!! warning
     ARI is generally not an appropriate metric for evaluating binnings, and is only

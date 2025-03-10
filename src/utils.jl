@@ -19,13 +19,23 @@ end
 
 function binsplit_tab_pairs(t_pairs, sep::Union{Char, AbstractString})
     return t_pairs |> imap() do (binname, seqname)
-        p = findfirst(sep, seqname)
-        p === nothing && error(lazy"Seperator $sep not found in seq name $seqname")
-        before = SubString(seqname, 1:last(p))
+        (before, _) = @something split_once(seqname, sep) error(
+            lazy"Seperator $sep not found in seq name $seqname"
+        )
         new_binname_ = string(before, binname)
         new_binname = SubString(new_binname_, 1:lastindex(new_binname_))
         (new_binname, seqname)
     end
+end
+
+function split_once(
+        str::AbstractString,
+        sep::Union{AbstractString, AbstractChar, AbstractPattern}
+    )::Union{Nothing, Tuple{SubString, SubString}}
+    p = @something findfirst(sep, str) return nothing
+    before = SubString(str, 1:prevind(str, first(p)))
+    after = SubString(str, nextind(str, last(p)):lastindex(str))
+    return (before, after)
 end
 
 function open_perhaps_gzipped(f::Function, path::String)
