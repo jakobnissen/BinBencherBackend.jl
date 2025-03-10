@@ -320,6 +320,69 @@ end
         @test n_bins(bins) == ngenomes(ref)
         @test is_disjoint(bins) == disjoint
     end
+
+    # Using a Binning
+    gs = gold_standard(ref, binning)
+    @test gs isa Binning
+    @test is_disjoint(gs) # the default
+    @test n_bins(gs) == ngenomes(ref)
+end
+
+n_sequences(x::Binning) = sum(i -> length(i.sequences), x.bins; init = 0)
+
+@testset "Binsplitting" begin
+    # Make the unsplit output by merging genomes A and B
+    unsplit_clusters_str = let
+        lines = IOBuffer(CLUSTERS_STR)
+        output = IOBuffer()
+        println(output, readline(lines)) # header
+        for line in eachline(lines)
+            (bin, contig) = split(line, '\t')
+            contigno = parse(Int, contig[2:end]) # called e.g. s9
+            sample = if contigno in 1:3
+                1
+            else
+                @assert contigno in 4:11
+                2
+            end
+            cname = contigno < 9 ? 1 : 2
+            println(output, "$(cname)\tS$(sample)C$(contig)")
+        end
+        seekstart(output)
+        String(read(output))
+    end
+    unsplit_ref_str = let
+        s = REF_STR
+        for i in 1:11
+            S = i ≤ 3 ? 1 : 2
+            s = replace(s, "\"s$(i)\"" => "\"S$(S)Cs$(i)\"")
+        end
+        s
+    end
+
+    # Test basic binsplitting
+    ref = Reference(IOBuffer(unsplit_ref_str))
+    unsplit = Binning(IOBuffer(unsplit_clusters_str), ref)
+    split_bins = Binning(IOBuffer(unsplit_clusters_str), ref; binsplit_separator = 'C')
+
+    @test n_bins(unsplit) < n_bins(split_bins)
+    @test n_sequences(unsplit) == n_sequences(split_bins)
+
+    # Test binsplitting with gold_standard
+    gs = gold_standard(ref; binsplit_separator = 'C')
+    @test n_bins(gs) >= length(genomes(ref))
+    target_seqs = count(ref.targets) do (s, t)
+        !isempty(t)
+    end
+
+    @test n_sequences(gs) == target_seqs
+    @test is_disjoint(gs)
+
+    # Test manual bins
+    @test all(gs.bins) do bin
+        s = Set([split(s.name, 'C')[1] for s in bin.sequences])
+        length(s) == 1
+    end
 end
 
 @testset "From gzipped" begin
