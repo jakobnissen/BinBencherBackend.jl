@@ -19,3 +19,6 @@ print_matrix(bins)
 ```
 
 For more, see the [documentation](https://jakobnissen.github.io/BinBencherBackend.jl/dev)
+
+## Existing reference files
+* CAMI2 toy human microbiome short read gold standard assembly: https://zenodo.org/records/15083711

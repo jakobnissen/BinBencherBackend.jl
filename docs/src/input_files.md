@@ -23,3 +23,7 @@ If you want to create the JSON file yourself, you can learn its format by readin
 * A JSON Schema with descriptions at `files/schema.json`
 * A small example reference in `files/ref.json`
 * The source code in `src/reference.json` - grep for `ReferenceJSON`
+
+### Existing files for download
+* Reference JSON files for CAMI2 toy human microbiome short read gold standard assembly: https://zenodo.org/records/15083711
+* NCBI taxonomy file (see the section on creating a reference): https://github.com/jakobnissen/BinBencher.jl/releases/download/filesv1/ncbi.tsv.gz
