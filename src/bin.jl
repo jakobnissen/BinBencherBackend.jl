@@ -146,7 +146,7 @@ function bin_by_indices(
     end
     # Now, iteratively compute clades at a higher and higher level.
     # Begin with parents of genome (this generation), then iteratively look at parents and update them
-    this_generation = Set((clade for clade in keys(clade_mapping)))
+    this_generation = Set(clade for clade in keys(clade_mapping))
     next_generation = empty(this_generation)
     while true
         while !isempty(this_generation)
@@ -241,7 +241,7 @@ function confusion_matrix(genome::Genome, bin::Bin; assembly::Bool = false)
 end
 
 """
-    recall_precision(x::Union{Genome, Clade}, bin::Bin; assembly::Bool=true)
+    recall_precision(x::Union{Genome, Clade}, bin::Bin; assembly::Bool=false)
 
 Get the recall, precision `NamedTuple` of `Float64` for the given genome/bin pair.
 See the docstring for `Bin` for how this is computed.
