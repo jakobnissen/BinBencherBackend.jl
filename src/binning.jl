@@ -687,8 +687,8 @@ function benchmark(
 
     # Now make the matrices counting recovered genomes / clades. Similar to above for
     # the bins, we increment the matrix at the correct recall value.
-    asm_matrices = [zeros(Int, length(recalls), length(precisions)) for i in 1:nranks(ref)]
-    genome_matrices = [copy(i) for i in asm_matrices]
+    asm_matrices::Vector{Matrix{Int}} = [zeros(Int, length(recalls), length(precisions)) for i in 1:nranks(ref)]
+    genome_matrices::Vector{Matrix{Int}} = [copy(i) for i in asm_matrices]
     for (v_asm, v_genome) in values(max_genome_recall_at_precision)
         for (v, m) in ((v_asm, asm_matrices[1]), (v_genome, genome_matrices[1]))
             update_matrix!(m, v, recalls)
@@ -705,9 +705,7 @@ function benchmark(
     # earlier updated the lower precision values with the recall values of the higher precision values.
     # Now, we need to do the reverse - update the low recall values with prec. of high rec. values.
     # We can do this once here, in the matrix.
-    for mv in (asm_matrices, genome_matrices, bin_genome_matrices, bin_asm_matrices),
-            m in mv
-
+    for mv in Vector{Matrix{Int}}[asm_matrices, genome_matrices, bin_genome_matrices, bin_asm_matrices], m in mv
         make_columnwise_reverse_cumulative!(m)
     end
 

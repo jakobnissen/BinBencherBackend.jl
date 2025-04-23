@@ -339,10 +339,10 @@ function Reference(io::IO)
         # but not the first field.).
         # So, if the fast regex match fails, we try to parse the whole JSON to get the version.
         # This means we'll parse the whole reference twice which is wasteful
-        json = JSON3.read(str)
+        json = JSON3.read(str)::JSON3.Object
         json[:version]::Int
     else
-        parse(Int, m.captures[1])::Int
+        parse(Int, something(m.captures[1]))::Int
     end
     if version != JSON_VERSION
         error(
