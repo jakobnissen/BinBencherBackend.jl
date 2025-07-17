@@ -1,9 +1,6 @@
-struct Unsafe end
-const unsafe = Unsafe()
-
 function tab_pairs(lines)
     return lines |>
-        imap(strip) |>
+        imap(rstrip) |>
         ifilter(!isempty) |>
         imap() do line
         cu = codeunits(line)

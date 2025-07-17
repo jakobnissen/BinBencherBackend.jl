@@ -47,7 +47,7 @@ See also: [`subset`](@ref), [`Genome`](@ref), [`Clade`](@ref)
 """
 Reference
 
-function Reference(::Unsafe)
+function new_reference()
     return Reference(
         Set{Genome}(),
         Dict{String, Int}(),
@@ -360,7 +360,7 @@ function Reference(json_struct::ReferenceJSON)
                 "but the supported version of the currently loaded version of BinBencherBackend is $(JSON_VERSION)."
         )
     end
-    ref = Reference(unsafe)
+    ref = new_reference()
 
     # Parse genomes
     for (genomename, flags, sourcesdict) in json_struct.genomes

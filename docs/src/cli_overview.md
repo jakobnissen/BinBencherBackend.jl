@@ -9,20 +9,16 @@ See more details about the subcommands of BinBencher.jl by navigating the docume
 
 ## Installation of the CLI program
 1. Install the [Julia programming language](https://julialang.org/)
-2. Launch the Julia REPL from a terminal by typing `$ julia`
-3. Enter Pkg mode in the REPL by typing `]`. You will see the prompt change from `julia>` to e.g. `(@v1.12) pkg>` depending on the Julia version.
-4. Create a new globally accessible project (i.e. virtual environment) by typing `activate @binbencher` in the pkg REPL.
-5. Add BinBencher to the environment with `add https://github.com/jakobnissen/BinBencher.jl`
-6. In the pkg repl, type `build`
+2. Make sure `julia` is on your `$PATH`, e.g. test it by running `julia -v`
+3. Install BinBencher with the following command:
 
-You will now have an executable script called `binbench` in the `bin` subdirectory your Julia home directory, e.g. on my computer it's at `/home/jakni/.julia/bin/binbench`.
-Add the `bin` folder to your PATH environmental variable to be able run to BinBencher as `binbench` from the shell.
+```shell
+julia --startup=no --project=@binbencher -e 'using Pkg; Pkg.add(url="https://github.com/jakobnissen/BinBencher.jl", rev="v0.1.0"); Pkg.precompile(); Pkg.build()'
+```
 
-!!! info
-    These installation instruction are convoluted, because, as of September 2024, Julia does not have a concept of installable
-    applications.
-    There is [recent work to improve this](https://github.com/JuliaLang/Pkg.jl/pull/3772), so hopefully BinBencher will be easier
-    to install and run by the time the work is done some time in 2025.
+You will now have an executable script called `binbench` in the `bin` subdirectory your Julia home directory.
+For example, on my computer the script is at `~/.julia/bin/binbench`.
+Add the `bin` folder to your `$PATH` environmental variable to be able run to BinBencher as `binbench` from the shell.
 
 ## Quickstart
 
