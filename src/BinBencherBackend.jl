@@ -2,7 +2,7 @@ module BinBencherBackend
 
 using AbstractTrees: AbstractTrees
 using CodecZlib: GzipDecompressorStream
-using JSON3: JSON3
+using JSON: JSON
 using StructTypes: StructTypes
 using LazilyInitializedFields: @lazy, @isinit, @init!, @uninit!, uninit
 using PrecompileTools: @setup_workload, @compile_workload

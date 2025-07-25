@@ -328,29 +328,25 @@ Reference(path::AbstractString) = open_perhaps_gzipped(i -> Reference(i), String
 function Reference(io::IO)
     # First, determine the version of the JSON file to see if this version of BBB
     # can even deserialize it.
-    # Currently, JSON3 doesn't support building custom types from already-parsed JSON
-    # objects. Therefore, we attempt to use a regex to find the version so we don't
-    # need to parse the whole JSON object two times
     str = read(io, String)
-    m = match(r"^\s*{\s*\"version\":\s*(\d+)\s*,?}?", str)
-    version = if m === nothing
-        # It's not possible to generically parse JSON using regex, so even if our
-        # regex fails, it might still be valid (for example, "version" could be present,
-        # but not the first field.).
-        # So, if the fast regex match fails, we try to parse the whole JSON to get the version.
-        # This means we'll parse the whole reference twice which is wasteful
-        json = JSON3.read(str)::JSON3.Object
-        json[:version]::Int
-    else
-        parse(Int, something(m.captures[1]))::Int
+    lazy_json = JSON.lazy(str)
+    let
+        v = get(lazy_json, :version, nothing)
+        if v === nothing
+            error("Malformed JSON format: Did not contain a top-level field called \"version\"")
+        end
+        v = v[]
+        if !(v isa Int)
+            error("Invalid JSON file: Field \"version\" is not an integer")
+        end
+        if v != JSON_VERSION
+            error(
+                lazy"Found reference version $(v), but the supported version of the ",
+                lazy"currently loaded version of BinBencherBackend is $(JSON_VERSION)."
+            )
+        end
     end
-    if version != JSON_VERSION
-        error(
-            lazy"Found reference version $(version), but the supported version of the ",
-            lazy"currently loaded version of BinBencherBackend is $(JSON_VERSION)."
-        )
-    end
-    return Reference(JSON3.read(str, ReferenceJSON))
+    return Reference(JSON.parse(lazy_json, ReferenceJSON))
 end
 
 function Reference(json_struct::ReferenceJSON)
@@ -409,13 +405,13 @@ function Reference(json_struct::ReferenceJSON)
 end
 
 function save(io::IO, ref::Reference)
-    json_dict = Dict{Symbol, Any}()
-    json_dict[:version] = JSON_VERSION
+    json_dict = Dict{String, Any}()
+    json_dict["version"] = JSON_VERSION
     # Genomes
     genomes::GENOMES_JSON_T = [
         (genome.name, Int(genome.flags.x), [(s.name, s.length) for s in genome.sources]) for genome in ref.genomes
     ]
-    json_dict[:genomes] = genomes
+    json_dict["genomes"] = genomes
 
     # Sequences
     sequences::SEQUENCES_JSON_T = [
@@ -426,12 +422,12 @@ function save(io::IO, ref::Reference)
             ) for (seq, targets) in ref.targets
     ]
 
-    json_dict[:sequences] = sequences
+    json_dict["sequences"] = sequences
 
     # Taxmaps
     taxmaps::TAXMAPS_JSON_T =
         [[(genome.name, genome.parent.name) for genome in ref.genomes]]
-    json_dict[:taxmaps] = taxmaps
+    json_dict["taxmaps"] = taxmaps
 
     for clades in ref.clades
         length(clades) == 1 && isnothing(only(clades).parent) && break
@@ -443,7 +439,7 @@ function save(io::IO, ref::Reference)
         end
     end
 
-    return JSON3.write(io, json_dict)
+    return JSON.json(io, json_dict)
 end
 
 # Invariants for the input list:
