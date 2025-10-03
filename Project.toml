@@ -1,12 +1,12 @@
 name = "BinBencherBackend"
 uuid = "63a9268e-b9e5-4a07-aba6-1f52d4878f75"
+version = "0.3.6"
 authors = ["Jakob Nybo Nissen <jakobnybonissen@gmail.com>"]
-version = "0.3.5"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
-JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 LazilyInitializedFields = "0e77f7df-68c5-4e49-93ce-4cd80f5598bf"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
@@ -14,19 +14,15 @@ StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 [compat]
 AbstractTrees = "0.4.2"
 CodecZlib = "0.7"
-JSON = "0.21.4"
-JSON3 = "1.9"
-JSONSchema = "1.4.1"
+JSON = "1"
 LazilyInitializedFields = "1.2"
 PrecompileTools = "1"
 StructTypes = "1.9"
-Test = "1.8"
-julia = "1.8"
+Test = "1.9"
+julia = "1.9"
 
 [extras]
-JSONSchema = "7d188eb4-7ad8-530c-ae41-71a32a6d4692"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 
 [targets]
-test = ["Test", "JSONSchema", "JSON"]
+test = ["Test"]
