@@ -31,6 +31,7 @@ using BinBencherBackend:
 
 using CodecZlib: GzipCompressor
 using JSON: JSON
+using JSONSchema: JSONSchema
 
 include("sameref.jl")
 
@@ -414,12 +415,9 @@ end
     @test sources_by_name["subjC3"].assembly_size == 0
 
     # Ref conforms to schema
-    # TODO: Not compatible with JSON.jl v1
-    #=
     schema = JSONSchema.Schema(String(open(read, joinpath(DIR, "schema.json"))))
-    ref_data = copy(JSON.parse(REF_STR))::Dict
+    ref_data = Dict(JSON.parse(REF_STR))
     @test isnothing(JSONSchema.validate(schema, ref_data))
-    =#
 end
 
 @testset "Adjusted rand index" begin
