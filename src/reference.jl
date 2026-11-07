@@ -197,9 +197,10 @@ function subset!(
         end
     end
 
-    # Remove sequences from sources
+    # Remove sequences from sources. We look up the sequences kept above instead
+    # of re-evaluating the predicate, which may not be deterministic.
     for genome in ref.genomes, source in genome.sources
-        filter!(i -> sequences(first(i))::Bool, source.sequences)
+        filter!(i -> haskey(ref.target_index_by_name, first(i).name), source.sequences)
     end
 
     # Re-initialize the now completely filtered Reference

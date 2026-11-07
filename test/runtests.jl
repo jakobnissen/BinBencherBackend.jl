@@ -237,6 +237,19 @@ end
     @test all(ref6.target_index_by_name) do (name, i)
         ref6.targets[i] === trgs_of[name]
     end
+
+    # The sequences predicate is only evaluated once per sequence, so even a
+    # non-deterministic predicate keeps sources and targets consistent
+    ref7 = deepcopy(ref)
+    n_calls = Ref(0)
+    alternating = s -> isodd(n_calls[] += 1)
+    subset!(ref7; sequences = alternating)
+    @test n_calls[] == n_seqs(ref)
+    mapped_in_targets = Set(seq for (seq, t) in ref7.targets if !isempty(t))
+    in_sources = Set(
+        first(i) for g in genomes(ref7) for src in g.sources for i in src.sequences
+    )
+    @test mapped_in_targets == in_sources
 end
 
 function test_is_same_binning(a::Binning, b::Binning)
