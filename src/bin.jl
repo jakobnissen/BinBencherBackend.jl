@@ -7,6 +7,7 @@
     )
 
 Construct a bin from an iterable of `Sequence` from a `Reference`.
+Throws an error if the same sequence is present more than once.
 
 If `considered_genomes` is not `nothing`, then any genomes not in the set will be ignored
 and so sequences mapping to those genomes will not count as contamination, and nor will
@@ -80,6 +81,17 @@ function Bin(
     return bin_by_indices(name, indices, ref.targets, scratch, considered_genomes)
 end
 
+@noinline function duplicate_sequence_error(name, seq_indices, targets)
+    seen = Set{eltype(seq_indices)}()
+    for i in seq_indices
+        if in!(seen, i)
+            seqname = first(targets[i]).name
+            error(lazy"Sequence \"$(seqname)\" is present multiple times in bin \"$(name)\"")
+        end
+    end
+    error("Unreachable") # we only call this function if there are duplicates
+end
+
 function bin_by_indices(
         name::AbstractString,
         seq_indices::Vector{<:Integer},
@@ -89,6 +101,7 @@ function bin_by_indices(
     )::Bin
     seqs = [first(targets[i]) for i in seq_indices]
     isempty(seqs) && error("Cannot construct empty Bin")
+    allunique(seq_indices) || duplicate_sequence_error(name, seq_indices, targets)
 
     # Which sequences map to the given genome, ints in bitset is indices into `seqs`.
     genome_mapping = Dict{Genome, BitSet}()
