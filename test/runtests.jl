@@ -321,6 +321,28 @@ end
         @test is_disjoint(bins) == disjoint
     end
 
+    # Disjoint gold standard assigns each sequence to the genome with the longest span,
+    # also when the longest span wraps around a circular source
+    refstr = """
+    {
+        "version": 2,
+        "taxmaps": [[["A", "X"], ["B", "X"], ["C", "X"]]],
+        "genomes": [
+            ["A", 1, [["sA", 100]]],
+            ["B", 1, [["sB", 100]]],
+            ["C", 1, [["sC", 100]]]
+        ],
+        "sequences": [
+            ["s1", 50, [["sA", 1, 5], ["sB", 1, 50]]],
+            ["s2", 50, [["sA", 1, 40], ["sC", 71, 20]]]
+        ]
+    }
+    """
+    small_ref = Reference(IOBuffer(refstr))
+    gs = gold_standard(small_ref; disjoint = true)
+    bin_of = Dict(only(s.name for s in b.sequences) => b.name for b in gs.bins)
+    @test bin_of == Dict("s1" => "bin_B", "s2" => "bin_C")
+
     # Using a Binning
     gs = gold_standard(ref, binning)
     @test gs isa Binning
