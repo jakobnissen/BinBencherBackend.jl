@@ -416,10 +416,10 @@ function save(io::IO, ref::Reference)
     # Sequences
     sequences::SEQUENCES_JSON_T = [
         (
-                seq.name,
-                seq.length,
-                [(source.name, first(span), last(span)) for (source, span) in targets],
-            ) for (seq, targets) in ref.targets
+            seq.name,
+            seq.length,
+            [(source.name, first(span), last(span)) for (source, span) in targets],
+        ) for (seq, targets) in ref.targets
     ]
 
     json_dict["sequences"] = sequences

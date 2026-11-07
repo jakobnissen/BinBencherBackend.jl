@@ -96,13 +96,17 @@ function bin_by_indices(
     mapping_breadth = 0
     for (i, (seq, idx)) in enumerate(zip(seqs, seq_indices))
         seq_targets = last(targets[idx])
-        isempty(seq_targets) || (mapping_breadth += length(seq))
+        # Sequences mapping only to genomes not considered are treated like
+        # unmapped sequences, i.e. they do not count towards the mapping breadth
+        maps_to_considered = false
         for (source, span) in seq_targets
             genome = source.genome
             !isnothing(considered_genomes) && !in(genome, considered_genomes) && continue
+            maps_to_considered = true
             push!(get!(valtype(genome_mapping), genome_mapping, genome), i)
             push!(get!(valtype(source_mapping), source_mapping, source), span)
         end
+        maps_to_considered && (mapping_breadth += length(seq))
     end
     genomes = Dict{Genome, @NamedTuple{asmsize::Int, total_bp::Int, foreign::Int}}()
     # Set `foreign`, which we can compute simply by knowing which sequences map to the genomes
