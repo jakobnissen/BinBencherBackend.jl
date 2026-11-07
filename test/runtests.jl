@@ -297,6 +297,34 @@ end
     @test all(m -> all(isone, m), only_virus.recovered_asms)
     @test all(m -> all(iszero, m), only_virus.recovered_genomes)
 
+    # Sequences mapping only to ignored genomes do not count as contamination
+    small_ref = Reference(
+        IOBuffer(
+            """
+            {
+                "version": 2,
+                "taxmaps": [[["A", "X"], ["B", "Y"]]],
+                "genomes": [["A", 1, [["sA", 100]]], ["B", 1, [["sB", 100]]]],
+                "sequences": [
+                    ["s1", 100, [["sA", 1, 100]]],
+                    ["s2", 100, [["sB", 1, 100]]],
+                    ["s3", 100, []]
+                ]
+            }
+            """
+        )
+    )
+    A = only(g for g in genomes(small_ref) if g.name == "A")
+    small_binning = Binning(
+        IOBuffer("clustername\tcontigname\nb\ts1\nb\ts2\nb\ts3\n"),
+        small_ref;
+        filter_genomes = g -> g.name == "A",
+    )
+    small_bin = only(small_binning.bins)
+    @test recall_precision(A, small_bin) == (recall = 1.0, precision = 1.0)
+    @test recall_precision(A.parent, small_bin) == (recall = 1.0, precision = 1.0)
+    @test n_recovered(small_binning, 0.99, 0.99) == 1
+
     bins2 = Binning(CLUSTERS_PATH, ref)
     test_is_same_binning(bins, bins2)
 
