@@ -346,6 +346,18 @@ end
     @test bins.bin_asm_stats.mean_bin_recall ≈ 0.636734693877551
     @test bins.bin_asm_stats.mean_bin_precision ≈ 1
 
+    # The same sequence may not be present in the same bin twice, even if not disjoint
+    dup_str = "clustername\tcontigname\nb\ts1\nb\ts2\nb\ts1\n"
+    @test_throws "\"s1\" is present multiple times in bin \"b\"" Binning(
+        IOBuffer(dup_str), ref; disjoint = false
+    )
+    @test_throws "multiple times" Bin("b", ref, [Sequence("s1", 25), Sequence("s1", 25)])
+    # But the same sequence may be present in different bins
+    nondisjoint = Binning(
+        IOBuffer("clustername\tcontigname\na\ts1\nb\ts1\n"), ref; disjoint = false
+    )
+    @test !is_disjoint(nondisjoint)
+
     # Test is disjoint
     @test is_disjoint(bins)
 end

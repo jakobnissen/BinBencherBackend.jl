@@ -77,7 +77,9 @@ open(file) do io
 * `min_seqs`: Filter away bins with fewer sequences that this
 * `binsplit_separator`: Split bins based on this separator
   (`nothing` means no binsplitting)
-* `disjoint`: Throw an error if the same sequence is seen in multiple bins
+* `disjoint`: Throw an error if the same sequence is seen in multiple bins.
+  Regardless of this option, the same sequence may not be present in the
+  same bin more than once.
 * `recalls` and `precision`: The thresholds to benchmark with
 * `filter_genomes`: A function `f(genome)::Bool`. Genomes for which it returns
    `false` are ignored in benchmarking.
