@@ -149,7 +149,8 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
         print(io, "\n  Precisions: ", repr([round(i; digits = 3) for i in x.precisions]))
         print(io, "\n  Recalls:    ", repr([round(i; digits = 3) for i in x.recalls]))
         print(io, "\n  Reconstruction (genomes):\n")
-        seekstart(buf)
+        # Use a new buffer, since writing to the old one would not truncate it
+        buf = IOBuffer()
         print_matrix(buf, x; level = 0, assembly = false)
         seekstart(buf)
         for line in eachline(buf)
@@ -891,11 +892,20 @@ function adjusted_rand_index(a::Binning, b::Binning; intersection::Bool = false)
     # or else there is no overlap and they are 100% distinct
     iszero(n_2) && return 0.0
 
-    numerator = sum_n_choose_two - (a_sum_choose_two * b_sum_choose_two) / n_2
-    denominator = (
-        (a_sum_choose_two + b_sum_choose_two) / 2 -
-            ((a_sum_choose_two * b_sum_choose_two) / n_2)
-    )
+    # The denominator below is zero iff both binnings are the same trivial partition,
+    # i.e. both are a single bin, or both consist only of single-basepair bins.
+    # ARI is undefined (0/0) here, but by convention, identical partitions have ARI 1.
+    # We check with exact integer arithmetic to avoid rounding issues.
+    if a_sum_choose_two == b_sum_choose_two && (iszero(a_sum_choose_two) || a_sum_choose_two == n_2)
+        return 1.0
+    end
+
+    # Convert to Float64 before multiplying, since the product of the
+    # integers may overflow for large binnings.
+    (a_f, b_f, n_2_f) = (Float64(a_sum_choose_two), Float64(b_sum_choose_two), Float64(n_2))
+    expected = (a_f * b_f) / n_2_f
+    numerator = Float64(sum_n_choose_two) - expected
+    denominator = (a_f + b_f) / 2 - expected
 
     # Handle rounding errors
     return clamp(numerator / denominator, -0.5, 1.0)

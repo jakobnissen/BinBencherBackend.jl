@@ -38,11 +38,11 @@ mutable struct Clade{G}
         check_valid_identifier(name)
         (rank, ngenomes) = if child isa G
             (@isinit(child.parent)) &&
-                existing_parent_error(name, child.name, child.parent.name)
+                existing_parent_error(child.name, name, child.parent.name)
             (1, 1)
         else
             parent = child.parent
-            parent === nothing || existing_parent_error(name, child.name, parent.name)
+            parent === nothing || existing_parent_error(child.name, name, parent.name)
             (child.rank + 1, child.ngenomes)
         end
         instance = new{G}(name, rank, [child], ngenomes, nothing)

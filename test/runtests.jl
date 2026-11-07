@@ -159,6 +159,18 @@ end
 end
 
 @testset "Clade" begin
+    # Error message names the child and parents correctly
+    g = Genome("myGenome")
+    c = Clade("cladeOne", g)
+    @test_throws (
+        "Attempted to add parent \"cladeTwo\" to child \"myGenome\", " *
+            "which already has parent \"cladeOne\""
+    ) Clade("cladeTwo", g)
+    Clade("cladeThree", c)
+    @test_throws "to child \"cladeOne\", which already has parent \"cladeThree\"" Clade(
+        "cladeFour", c
+    )
+
     (gA, gB, gC) = sort!(collect(genomes(ref)); by = i -> i.name)
     D = gA.parent
     @test D === gB.parent
@@ -337,6 +349,13 @@ end
     @test recall_precision(A, small_bin) == (recall = 1.0, precision = 1.0)
     @test recall_precision(A.parent, small_bin) == (recall = 1.0, precision = 1.0)
     @test n_recovered(small_binning, 0.99, 0.99) == 1
+
+    # Text display does not contain leftover text from the reused buffer when the
+    # matrix is shorter than the display of the reference
+    tiny = Binning(IOBuffer(CLUSTERS_STR), ref; recalls = [0.5], precisions = [0.5])
+    shown = repr(MIME"text/plain"(), tiny)
+    @test count("Genomes:", shown) == 1
+    @test endswith(rstrip(shown), r"0\.5\s+\d+")
 
     bins2 = Binning(CLUSTERS_PATH, ref)
     test_is_same_binning(bins, bins2)
@@ -566,5 +585,25 @@ end
     # [1,2,2,3,3,4,4,4,5,6,7,7,7,7]
     # Hard coded value obtained using Clustering.jl's randindex
 
-    isapprox(adjusted_rand_index(binning, gold_standard(ref)), 0.6560268794624108)
+    @test isapprox(adjusted_rand_index(binning, gold_standard(ref)), 0.6560268794624108)
+
+    # Two identical binnings each with a single bin
+    single = Binning(IOBuffer("clustername\tcontigname\na\ts0\na\ts1\na\ts2\n"), ref)
+    @test adjusted_rand_index(single, single) === 1.0
+
+    # Very long sequences, such that the product of the pair counts overflows UInt128.
+    # Binning a has both sequences in one bin, b has them separately. Then the
+    # number of co-binned pairs equals the expected number, so the ARI is 0.
+    big_refstr = """
+    {
+        "version": 2,
+        "taxmaps": [[["A", "X"]]],
+        "genomes": [["A", 1, [["A", 5]]]],
+        "sequences": [["s1", 10000000000, []], ["s2", 10000000000, []]]
+    }
+    """
+    big_ref = Reference(IOBuffer(big_refstr))
+    big_a = Binning(IOBuffer("clustername\tcontigname\na\ts1\na\ts2\n"), big_ref)
+    big_b = Binning(IOBuffer("clustername\tcontigname\na\ts1\nb\ts2\n"), big_ref)
+    @test isapprox(adjusted_rand_index(big_a, big_b), 0.0; atol = 1.0e-9)
 end
