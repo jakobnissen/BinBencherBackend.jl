@@ -477,8 +477,8 @@ function gold_standard(
     for sequence in sequences
         targets = last(ref.targets[ref.target_index_by_name[sequence.name]])
         isempty(targets) && continue
-        # If not disjoint, pick the genome where the sequence aligns to the longest span
-        best_index = disjoint ? last(findmax(i -> length(last(i)), targets)) : 0
+        # If disjoint, pick the genome where the sequence aligns to the longest span
+        best_index = disjoint ? last(findmax(span_length, targets)) : 0
         for (i, (source, _)) in enumerate(targets)
             disjoint && i != best_index && continue
             push!(
@@ -523,6 +523,12 @@ function gold_standard(
     # Even if we don't force it to be disjoint, it still could be
     bins_are_disjoint = disjoint ? true : check_disjoint(bins)
     return _binning(bins, ref, recalls, precisions, bins_are_disjoint)
+end
+
+# Number of positions in the source covered by the span, accounting for
+# spans that wrap around circular sources (from > to)
+function span_length((source, (from, to))::Target)::Int
+    return from ≤ to ? to - from + 1 : source.length - from + to + 1
 end
 
 function check_disjoint(bins)
