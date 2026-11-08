@@ -4,13 +4,13 @@ using AbstractTrees: AbstractTrees
 using CodecZlib: GzipDecompressorStream
 using JSON: JSON
 using StructTypes: StructTypes
-using LazilyInitializedFields: @lazy, @isinit, @init!, @uninit!, uninit
 using PrecompileTools: @setup_workload, @compile_workload
 
 include("exceptions.jl")
 include("utils.jl")
 include("flags.jl")
 include("sequence.jl")
+include("types.jl")
 include("source.jl")
 include("clade.jl")
 include("genome.jl")
@@ -62,6 +62,10 @@ export BinBencherException,
     intersecting,
     recall_precision,
     genomes,
+    genome_size,
+    assembly_size,
+    shortest_seq_len,
+    fraction_assembled,
     is_organism,
     is_virus,
     is_plasmid,
@@ -84,5 +88,7 @@ export BinBencherException,
     print_matrix,
     is_disjoint,
     adjusted_rand_index
+
+public total_bp
 
 end # module

@@ -749,7 +749,7 @@ function benchmark(
     # given precision value. We could also have done it the other way.
     max_genome_recall_at_precision = Dict{Genome, Tuple{Vector{Float64}, Vector{Float64}}}()
     max_clade_recall_at_precision =
-        Dict{Clade{Genome}, Tuple{Vector{Float64}, Vector{Float64}}}()
+        Dict{Clade, Tuple{Vector{Float64}, Vector{Float64}}}()
     for genome in ref.genomes
         max_genome_recall_at_precision[genome] =
             (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
@@ -789,8 +789,8 @@ function benchmark(
         for (genome, (; asmsize, foreign)) in bin.genomes
             (v_asm, v_genome) = max_genome_recall_at_precision[genome]
             precision = asmsize / (asmsize + foreign)
-            asm_recall = asmsize / genome.assembly_size
-            genome_recall = asmsize / genome.genome_size
+            asm_recall = asmsize / assembly_size(genome)
+            genome_recall = asmsize / genome_size(genome)
 
             # Find the index corresponding to the given precision. If the precision is lower than
             # the smallest precision in `precisions`, don't do anything

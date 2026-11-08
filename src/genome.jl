@@ -1,22 +1,3 @@
-@lazy mutable struct Genome
-    const name::String
-    const sources::Set{Source{Genome}}
-    const flags::FlagSet
-    @lazy parent::Clade{Genome}
-    @lazy genome_size::Int
-    @lazy assembly_size::Int
-
-    function Genome(name::AbstractString, flags::FlagSet)
-        new(
-            check_valid_identifier(String(name)),
-            Set{Source{Genome}}(),
-            flags,
-            uninit,
-            uninit,
-            uninit,
-        )
-    end
-end
 Genome(name::AbstractString) = Genome(name, FlagSet())
 
 """
@@ -31,6 +12,7 @@ A genome have a _genome size_, which is the sum of the length of all its sources
 We consider this to be the true size of the biological genome (assuming its full
 sequence is contained in its sources), as well as an _assembly size_, which represent
 the sum of the assembly sizes of each source.
+See [`genome_size`](@ref) and [`assembly_size`](@ref).
 
 See also: [`Clade`](@ref), [`Source`](@ref), [`mrca`](@ref)
 
@@ -51,8 +33,37 @@ Species "D", 2 genomes
 """
 Genome
 
-const Target = Tuple{Source{Genome}, Tuple{Int, Int}}
-const Node = Union{Genome, Clade{Genome}}
+const Target = Tuple{Source, Tuple{Int, Int}}
+const Node = Union{Genome, Clade}
+
+function finished_stats(x::Genome)::GenomeStats
+    stats = x.stats
+    stats === nothing && unfinished_error(x)
+    return stats
+end
+
+"""
+    genome_size(x::Genome)::Int
+
+Get the genome size of a `Genome`, which is the sum of the lengths of its sources.
+
+See also: [`assembly_size`](@ref)
+
+# Examples
+```jldoctest
+julia> genome_size(genome)
+100
+```
+"""
+genome_size(x::Genome) = finished_stats(x).genome_size
+assembly_size(x::Genome) = finished_stats(x).assembly_size
+
+# The parent of a genome is always set when it's part of a finished reference
+function parent_clade(x::Genome)::Clade
+    parent = x.parent
+    parent === nothing && error(lazy"Genome \"$(x.name)\" has no parent clade")
+    return parent
+end
 
 """
     flags(g::Genome)::FlagSet
@@ -79,7 +90,7 @@ Check if `g` is known to be an organism.
 ```jldoctest
 julia> is_organism(genome)
 true
-``` 
+```
 """
 is_organism(g::Genome) = Flags.organism ∈ flags(g)
 
@@ -92,7 +103,7 @@ Check if `g` is known to be a virus.
 ```jldoctest
 julia> is_virus(genome)
 false
-``` 
+```
 """
 is_virus(g::Genome) = Flags.virus ∈ flags(g)
 
@@ -105,19 +116,20 @@ Check if `g` is known to be a plasmid.
 ```jldoctest
 julia> is_plasmid(genome)
 false
-``` 
+```
 """
 is_plasmid(g::Genome) = Flags.plasmid ∈ flags(g)
 
-function add_child!(c::Clade{Genome}, g::Node)::Clade
+function add_child!(c::Clade, g::Node)::Clade
+    existing_parent = g.parent
+    existing_parent === nothing || existing_parent_error(g.name, c.name, existing_parent.name)
     children = c.children
     if g isa Genome
         push!(children::Vector{Genome}, g)
-        @init! g.parent = c
     else
-        push!(children::Vector{Clade{Genome}}, g)
-        g.parent = c
+        push!(children::Vector{Clade}, g)
     end
+    g.parent = c
     c.ngenomes += (g isa Genome ? 1 : g.ngenomes)
     return c
 end
@@ -146,7 +158,7 @@ Base.hash(x::Genome, h::UInt) = hash(x.name, h ⊻ UInt(21323125590))
 
 # Only called when parsing a reference file
 function add_source!(genome::Genome, name::AbstractString, length::Integer)
-    @isinit(genome.genome_size) &&
+    genome.stats === nothing ||
         error("Can't add source to genome after calling finish! on it.")
     is_valid_bb_identifier(name) || throw(ReferenceError(invalid_identifier_message(name)))
     if length < 1
@@ -161,14 +173,16 @@ function add_source!(genome::Genome, name::AbstractString, length::Integer)
 end
 
 function finish!(genome::Genome, scratch::Vector{Tuple{Int, Int}})
-    @isinit(genome.genome_size) && return genome
-    @isinit(genome.parent) ||
+    genome.stats === nothing || return genome
+    genome.parent === nothing &&
         error(lazy"finish! called on genome \"$(genome.name)\" without assigned parent.")
     for source in genome.sources
-        @isinit(source.assembly_size) || finish!(source, scratch)
+        finish!(source, scratch)
     end
-    @init! genome.genome_size = sum(i -> i.length, genome.sources; init = 0)
-    @init! genome.assembly_size = sum(i -> i.assembly_size, genome.sources; init = 0)
+    genome.stats = GenomeStats(
+        sum(i -> i.length, genome.sources; init = 0),
+        sum(assembly_size, genome.sources; init = 0),
+    )
     return genome
 end
 
@@ -177,19 +191,19 @@ function Base.show(io::IO, ::MIME"text/plain", x::Genome)
     return if get(io, :compact, false)
         show(io, x)
     else
-        asm = (x.assembly_size / x.genome_size) * 100
+        asm = (assembly_size(x) / genome_size(x)) * 100
         print(
             io,
             "Genome \"",
             x.name,
             "\"\n  Parent:        ",
             '"',
-            x.parent.name,
+            parent_clade(x).name,
             '"',
             "\n  Genome size:   ",
-            x.genome_size,
+            genome_size(x),
             "\n  Assembly size: ",
-            x.assembly_size,
+            assembly_size(x),
             " (",
             round(asm; digits = 1),
             " %)",
@@ -211,8 +225,8 @@ Compute the most recent common ancestor (MRCA) of `a` and `b`.
 """
 function mrca(a::Node, b::Node)::Node
     a === b && return a
-    ca = a isa Genome ? a.parent : a
-    cb = b isa Genome ? b.parent : b
+    ca = a isa Genome ? parent_clade(a) : a
+    cb = b isa Genome ? parent_clade(b) : b
     (lo, hi) = ca.rank < cb.rank ? (ca, cb) : (cb, ca)
     while lo.rank < hi.rank
         lo = lo.parent::Clade
@@ -259,7 +273,7 @@ end
 # We instead store first clade to emit, and a bool telling if it's
 # empty (i.e. it began at the top clade)
 struct AncestorIterator
-    start::Clade{Genome}
+    start::Clade
     empty::Bool
 end
 
@@ -268,14 +282,14 @@ end
 # and this is unlikely to be performance critical
 Base.IteratorSize(::Type{AncestorIterator}) = Base.SizeUnknown()
 
-Base.eltype(::Type{AncestorIterator}) = Clade{Genome}
+Base.eltype(::Type{AncestorIterator}) = Clade
 
 """
     ancestors(x::Union{Genome, Clade})
 
 Return an iterator of the ancestors of `x`. The first element will be `x`'s
 parent, the next element its grandparent etc.
-All elements of the iterator are `Clade{Genome}`.
+All elements of the iterator are `Clade`.
 
 # Examples
 ```jldoctest
@@ -286,9 +300,9 @@ julia> println([i.name for i in ancestors(genome)])
 ["D", "F"]
 ```
 """
-ancestors(child::Genome) = AncestorIterator(child.parent, false)
+ancestors(child::Genome) = AncestorIterator(parent_clade(child), false)
 
-function ancestors(child::Clade{Genome})
+function ancestors(child::Clade)
     next = child.parent
     return isnothing(next) ? AncestorIterator(child, true) : AncestorIterator(next, false)
 end

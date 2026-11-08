@@ -1,26 +1,5 @@
-@lazy mutable struct Source{G}
-    const name::String
-    const genome::G
-    const length::Int
-    const sequences::Vector{Tuple{Sequence, Tuple{Int, Int}}}
-    @lazy assembly_size::Int
-    @lazy total_bp::Int
-
-    function Source(genome::G, name::AbstractString, length::Integer) where {G}
-        length ≤ 0 && throw(ArgumentError("Source length must be at least 1"))
-        new{G}(
-            check_valid_identifier(String(name)),
-            genome,
-            Int(length),
-            Vector{Tuple{Sequence, Tuple{Int, Int}}}(),
-            uninit,
-            uninit,
-        )
-    end
-end
-
 """
-    Source{Genome}(g::Genome, name::AbstractString, length::Integer)
+    Source(g::Genome, name::AbstractString, length::Integer)
 
 Sources are the "ground truth" sequences that the binning attempts to recreate.
 For example, the assembled contigs of the reference genome (typically full, closed circular
@@ -32,9 +11,42 @@ Each `Source` has a single parent `Genome`, and a unique name which identifies i
 span given by a 2-tuple `Tuple{Int, Int}`.
 
 `Source`s have an _assembly size_, which is the number of base pairs where any sequence map
-to.
+to, see [`assembly_size`](@ref).
 """
 Source
+
+function finished_stats(x::Source)::SourceStats
+    stats = x.stats
+    stats === nothing && unfinished_error(x)
+    return stats
+end
+
+"""
+    assembly_size(x::Union{Source, Genome})::Int
+
+Get the assembly size of a `Source` or `Genome`.
+The assembly size of a `Source` is the number of positions in the source covered by
+at least one sequence.
+The assembly size of a `Genome` is the sum of the assembly sizes of its sources.
+
+See also: [`genome_size`](@ref)
+
+# Examples
+```jldoctest
+julia> assembly_size(genome)
+88
+```
+"""
+assembly_size(x::Source) = finished_stats(x).assembly_size
+
+"""
+    total_bp(x::Source)::Int
+
+Get the total number of base pairs of sequences mapping to the `Source`.
+Unlike [`assembly_size`](@ref), positions in the source covered by multiple
+sequences are counted multiple times.
+"""
+total_bp(x::Source) = finished_stats(x).total_bp
 
 Base.:(==)(s1::Source, s2::Source) = s1.name == s2.name
 Base.hash(x::Source, h::UInt) = hash(x.name, h ⊻ UInt(344509130945))
@@ -50,18 +62,17 @@ function add_sequence!(source::Source, seq::Sequence, span::Tuple{Int, Int})
             ),
         )
     end
-    @isinit(source.assembly_size) &&
+    source.stats === nothing ||
         error("Can't add sequence to source after calling finish! on it.")
     push!(source.sequences, (seq, span))
     return source
 end
 
 function finish!(source::Source, scratch::Vector{Tuple{Int, Int}})
-    @isinit(source.assembly_size) && return source
-    (asm_size, total_bp) = assembly_size!(last, scratch, source.sequences, source.length)
+    source.stats === nothing || return source
+    (asm_size, bp) = assembly_size!(last, scratch, source.sequences, source.length)
     @assert asm_size ≤ source.length
-    @init! source.assembly_size = asm_size
-    @init! source.total_bp = total_bp
+    source.stats = SourceStats(asm_size, bp)
     return source
 end
 
@@ -135,7 +146,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Source)
             "\n  Length:        ",
             x.length,
             "\n  Assembly size: ",
-            x.assembly_size,
+            assembly_size(x),
             "\n  Sequences:     ",
             length(x.sequences),
         )

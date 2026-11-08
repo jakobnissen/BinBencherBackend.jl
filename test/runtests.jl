@@ -10,6 +10,8 @@ using BinBencherBackend:
     Genome,
     Clade,
     Source,
+    assembly_size,
+    genome_size,
     Sequence,
     ancestors,
     descends_from,
@@ -621,16 +623,16 @@ end
 
 @testset "ref.json specifics" begin
     ref = Reference(IOBuffer(REF_STR))
-    sources_by_name = Dict{String, Source{Genome}}()
+    sources_by_name = Dict{String, Source}()
     for genome in genomes(ref), source in genome.sources
         sources_by_name[source.name] = source
     end
     # Circular mapping
     C2 = sources_by_name["subjC2"]
     @test C2.length == 100
-    @test C2.assembly_size == 21 + 20 + 21
+    @test assembly_size(C2) == 21 + 20 + 21
 
-    @test sources_by_name["subjC3"].assembly_size == 0
+    @test assembly_size(sources_by_name["subjC3"]) == 0
 
     # Ref conforms to schema
     schema = JSONSchema.Schema(String(open(read, joinpath(DIR, "schema.json"))))

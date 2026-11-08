@@ -1,11 +1,16 @@
-@lazy mutable struct Reference
+# See the comment on GenomeStats
+struct ReferenceStats
+    shortest_seq_len::Int
+    fraction_assembled::Float64
+end
+
+mutable struct Reference
     const genomes::Set{Genome}
     # Sequence name => index into targets
     const target_index_by_name::Dict{String, UInt32}
     const targets::Vector{Tuple{Sequence, Vector{Target}}}
-    const clades::Vector{Vector{Clade{Genome}}}
-    @lazy shortest_seq_len::Int
-    @lazy fraction_assembled::Float64
+    const clades::Vector{Vector{Clade}}
+    stats::Union{ReferenceStats, Nothing}
 end
 
 """
@@ -52,9 +57,8 @@ function new_reference()
         Set{Genome}(),
         Dict{String, Int}(),
         Vector{Tuple{Sequence, Vector{Target}}}(),
-        Vector{Clade{Genome}}[],
-        uninit,
-        uninit,
+        Vector{Clade}[],
+        nothing,
     )
 end
 
@@ -73,9 +77,9 @@ function Base.show(io::IO, ::MIME"text/plain", x::Reference)
             "\n  Ranks:      ",
             nranks(x),
             "\n  Seq length: ",
-            x.shortest_seq_len,
+            shortest_seq_len(x),
             "\n  Assembled:  ",
-            round(x.fraction_assembled * 100; digits = 1),
+            round(fraction_assembled(x) * 100; digits = 1),
             " %",
         )
     end
@@ -89,22 +93,55 @@ function nranks(x::Reference)
     return length(x.clades) + 1
 end
 
+function finished_stats(x::Reference)::ReferenceStats
+    stats = x.stats
+    stats === nothing && unfinished_error(x)
+    return stats
+end
+
+"""
+    shortest_seq_len(ref::Reference)::Int
+
+Get the length of the shortest sequence in the `Reference`.
+
+# Examples
+```jldoctest
+julia> shortest_seq_len(ref)
+10
+```
+"""
+shortest_seq_len(x::Reference) = finished_stats(x).shortest_seq_len
+
+"""
+    fraction_assembled(ref::Reference)::Float64
+
+Get the fraction of the total genome size of all genomes in the `Reference`
+which is covered by at least one sequence.
+
+See also: [`assembly_size`](@ref), [`genome_size`](@ref)
+
+# Examples
+```jldoctest
+julia> round(fraction_assembled(ref); digits = 3)
+0.619
+```
+"""
+fraction_assembled(x::Reference) = finished_stats(x).fraction_assembled
+
 function finish!(ref::Reference)
-    @isinit(ref.fraction_assembled) && return ref
+    ref.stats === nothing || return ref
     # These are checked by the reference parser and by `subset!`, so if this fails, it's a bug
     isempty(ref.genomes) && error("Reference cannot have zero genomes")
     scratch = Tuple{Int, Int}[]
     foreach(g -> finish!(g, scratch), ref.genomes)
-    assembly_size = genome_size = 0
+    total_assembly_size = total_genome_size = 0
     for genome in ref.genomes
-        assembly_size += genome.assembly_size
-        genome_size += genome.genome_size
+        total_assembly_size += assembly_size(genome)
+        total_genome_size += genome_size(genome)
     end
-    shortest_seq_len = minimum(i -> length(first(i)), ref.targets; init = typemax(Int))
-    shortest_seq_len == typemax(Int) &&
-        error("Cannot initialize a Reference with no sequences")
-    @init! ref.shortest_seq_len = shortest_seq_len
-    @init! ref.fraction_assembled = assembly_size / genome_size
+    shortest = minimum(i -> length(first(i)), ref.targets; init = typemax(Int))
+    shortest == typemax(Int) && error("Cannot initialize a Reference with no sequences")
+    ref.stats = ReferenceStats(shortest, total_assembly_size / total_genome_size)
     return ref
 end
 
@@ -164,7 +201,7 @@ function subset!(
         throw(ArgumentError("Subsetting would leave the reference with no sequences"))
     end
 
-    ref = uninit!(ref)
+    ref = unfinish!(ref)
     sources_to_remove = Set{Source}()
 
     # Update both ref.targets and ref.target_index_by_name
@@ -197,7 +234,7 @@ function subset!(
     for i in (length(ref.clades) - 1):-1:1
         empty!(ref.clades[i])
         for parent in ref.clades[i + 1]
-            union!(ref.clades[i], parent.children::Vector{Clade{Genome}})
+            union!(ref.clades[i], parent.children::Vector{Clade})
         end
     end
 
@@ -224,15 +261,12 @@ See also: [`subset!`](@ref)
 """
 subset(ref::Reference; kwargs...) = subset!(deepcopy(ref); kwargs...)
 
-function uninit!(ref::Reference)
-    @uninit! ref.fraction_assembled
-    @uninit! ref.shortest_seq_len
+function unfinish!(ref::Reference)
+    ref.stats = nothing
     for genome in ref.genomes
-        @uninit! genome.genome_size
-        @uninit! genome.assembly_size
+        genome.stats = nothing
         for source in genome.sources
-            @uninit! source.assembly_size
-            @uninit! source.total_bp
+            source.stats = nothing
         end
     end
     return ref
@@ -475,7 +509,7 @@ function Reference(json_struct::ReferenceJSON)
     end
 
     # Check for unique sources
-    source_by_name = Dict{String, Source{Genome}}()
+    source_by_name = Dict{String, Source}()
     for genome in ref.genomes, source in genome.sources
         if haskey(source_by_name, source.name)
             throw(
@@ -515,7 +549,7 @@ function Reference(json_struct::ReferenceJSON)
     end
 
     # Add taxonomy from the previously spawned task
-    taxonomy = fetch(tax_task)::Union{ReferenceError, Vector{Vector{Clade{Genome}}}}
+    taxonomy = fetch(tax_task)::Union{ReferenceError, Vector{Vector{Clade}}}
     taxonomy isa ReferenceError && throw(taxonomy)
     copy!(ref.clades, taxonomy)
 
@@ -545,7 +579,7 @@ function save(io::IO, ref::Reference)
 
     # Taxmaps
     taxmaps::TAXMAPS_JSON_T =
-        [[(genome.name, genome.parent.name) for genome in ref.genomes]]
+        [[(genome.name, parent_clade(genome).name) for genome in ref.genomes]]
     json_dict["taxmaps"] = taxmaps
 
     for clades in ref.clades
@@ -570,14 +604,14 @@ end
 function parse_taxonomy(
         genomes::Set{Genome},
         taxmaps::Vector{Vector{Tuple{String, String}}},
-    )::Vector{Vector{Clade{Genome}}}
-    result = Vector{Vector{Clade{Genome}}}()
+    )::Vector{Vector{Clade}}
+    result = Vector{Vector{Clade}}()
     isempty(genomes) && isempty(taxmaps) && return result
     child_by_name = Dict{String, Node}(g.name => g for g in genomes)
     assigned_children_names = Set{String}()
     parent_by_name = empty(child_by_name)
     for (rank, taxmap) in enumerate(taxmaps)
-        cladeset = Clade{Genome}[]
+        cladeset = Clade[]
         empty!(assigned_children_names)
         for (child_name, parent_name) in taxmap
             if child_name ∈ assigned_children_names
@@ -595,7 +629,7 @@ function parse_taxonomy(
             end
             # Create parent if it does not already exist
             parent =
-                get(parent_by_name, parent_name, nothing)::Union{Clade{Genome}, Nothing}
+                get(parent_by_name, parent_name, nothing)::Union{Clade, Nothing}
             if parent === nothing
                 if !is_valid_bb_identifier(parent_name)
                     throw(ReferenceError(invalid_identifier_message(parent_name)))

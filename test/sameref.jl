@@ -61,7 +61,7 @@ function test_is_same(a::Genome, b::Genome)::Union{Nothing, String}
     return nothing
 end
 
-function test_is_same(a::Clade{Genome}, b::Clade{Genome})::Union{Nothing, String}
+function test_is_same(a::Clade, b::Clade)::Union{Nothing, String}
     a.name == b.name || return "Different clade name"
     a.rank == b.rank || return "Different clade orders (should not happen?)"
     agns = sort!(collect(a.children); by = i -> i.name)

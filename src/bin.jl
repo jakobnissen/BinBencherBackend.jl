@@ -60,7 +60,7 @@ struct Bin
     # Recall is max recall of all children
     # Precision is (sum of length of mapping seqs) / breadth
     clades::Dict{
-        Clade{Genome},
+        Clade,
         @NamedTuple{asm_recall::Float64, genome_recall::Float64, precision::Float64}
     }
     # Sum of lengths of sequences mapping to anything, cached for efficiency
@@ -114,7 +114,7 @@ function bin_by_indices(
 
     # Which sequences map to the given genome, ints in bitset is indices into `seqs`.
     genome_mapping = Dict{Genome, BitSet}()
-    source_mapping = Dict{Source{Genome}, Vector{Tuple{Int, Int}}}()
+    source_mapping = Dict{Source, Vector{Tuple{Int, Int}}}()
     mapping_breadth = 0
     for (i, (seq, idx)) in enumerate(zip(seqs, seq_indices))
         seq_targets = last(targets[idx])
@@ -153,18 +153,19 @@ function bin_by_indices(
     # We store sets of mapping sequences - the set mapping to a clade is the union of those
     # mapping to its children.
     clade_mapping = Dict{
-        Clade{Genome},
+        Clade,
         @NamedTuple{asm_recall::Float64, genome_recall::Float64, mapping_seqs::BitSet}
     }()
     for (genome, (; asmsize)) in genomes
-        asm_recall = asmsize / genome.assembly_size
-        genome_recall = asmsize / genome.genome_size
+        asm_recall = asmsize / assembly_size(genome)
+        genome_recall = asmsize / genome_size(genome)
+        parent = parent_clade(genome)
         (old_asm_recall, old_genome_recall, mapping) = get!(
             () -> (; asm_recall = 0.0, genome_recall = 0.0, mapping_seqs = BitSet()),
             clade_mapping,
-            genome.parent,
+            parent,
         )
-        clade_mapping[genome.parent] = (;
+        clade_mapping[parent] = (;
             asm_recall = max(old_asm_recall, asm_recall),
             genome_recall = max(old_genome_recall, genome_recall),
             mapping_seqs = union!(mapping, genome_mapping[genome]),
@@ -200,7 +201,7 @@ function bin_by_indices(
     end
     # Now, having computed the sets of mapping contigs, we can compute the actual precision values
     clades = Dict{
-        Clade{Genome},
+        Clade,
         @NamedTuple{asm_recall::Float64, genome_recall::Float64, precision::Float64}
     }()
     for (clade, (asm_recall, genome_recall, set)) in clade_mapping
@@ -227,7 +228,7 @@ julia> collect(intersecting(bin))
  Genome(gA)
 
 julia> sort!(collect(intersecting(Clade, bin)); by=i -> i.name)
-2-element Vector{Clade{Genome}}:
+2-element Vector{Clade}:
  Species "D", 2 genomes
  Genus "F", 3 genomes
 ```
@@ -262,7 +263,7 @@ end
 function confusion_matrix(genome::Genome, bin::Bin; assembly::Bool = false)
     (; asmsize, foreign) =
         get(bin.genomes, genome, (asmsize = 0, total_bp = 0, foreign = bin.breadth))
-    fn = (assembly ? genome.assembly_size : genome.genome_size) - asmsize
+    fn = (assembly ? assembly_size(genome) : genome_size(genome)) - asmsize
     return (asmsize, foreign, fn)
 end
 
@@ -296,7 +297,7 @@ function recall_precision(genome::Genome, bin::Bin; assembly::Bool = false)
     return (; recall, precision)
 end
 
-function recall_precision(clade::Clade{Genome}, bin::Bin; assembly::Bool = false)
+function recall_precision(clade::Clade, bin::Bin; assembly::Bool = false)
     (; asm_recall, genome_recall, precision) =
         get(bin.clades, clade, (; asm_recall = 0.0, genome_recall = 0.0, precision = 0.0))
     return assembly ? (; recall = asm_recall, precision) : (; recall = genome_recall, precision)
@@ -316,7 +317,7 @@ f1(genome::Genome, bin::Bin; assembly::Bool = false) = fscore(genome, bin, 1; as
 
 function recalls_precisions(::Type{Genome}, bin::Bin; assembly::Bool = false)
     return bin.genomes |> imap() do (genome, (; asmsize, foreign))
-        fn = (assembly ? genome.assembly_size : genome.genome_size) - asmsize
+        fn = (assembly ? assembly_size(genome) : genome_size(genome)) - asmsize
         recall = asmsize / (asmsize + fn)
         precision = asmsize / (asmsize + foreign)
         (; genome, recall, precision)
