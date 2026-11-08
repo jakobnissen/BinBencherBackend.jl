@@ -24,7 +24,7 @@ Bin "C1"
 julia> first(bin.sequences)
 Sequence("s1", 25)
 
-julia> f1(first(ref.genomes), bin)
+julia> f1(genome, bin)
 0.5714285714285715
 ```
 
