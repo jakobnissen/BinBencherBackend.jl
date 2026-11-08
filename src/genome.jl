@@ -36,7 +36,7 @@ See also: [`Clade`](@ref), [`Source`](@ref), [`mrca`](@ref)
 
 # Examples
 ```jldoctest
-julia> gA, gB, gC = collect(ref.genomes);
+julia> gA, gB, gC = sort!(collect(ref.genomes); by = i -> i.name);
 
 
 julia> flags(gA)
