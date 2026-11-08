@@ -272,11 +272,11 @@ function print_matrix(io::IO, x::Binning; level::Integer = 0, assembly::Bool = f
     rnd(x) = string(round(x; digits = 3))
     digitwidth(x) = sizeof(rnd(x))
     width = max(
-        max(4, ndigits(maximum(m; init = 0) + 1)),
+        maximum(digitwidth, m; init = 0) + 1,
         maximum(digitwidth, x.recalls; init = 0) + 1,
     )
     col1_width = max(3, maximum(digitwidth, x.precisions))
-    println(io, rpad("P\\R", col1_width), join([lpad(i, width) for i in x.recalls]))
+    println(io, rpad("P\\R", col1_width), join([lpad(rnd(i), width) for i in x.recalls]))
     for (prec_index, prec) in enumerate(x.precisions)
         println(
             io,
@@ -399,7 +399,7 @@ function _binning(
         precisions,
         is_disjoint::Bool,
     )
-    sort!(bins; by = i -> i.name)
+    bins = sort(bins; by = i -> i.name)
     checked_recalls = validate_recall_precision(recalls)
     checked_precisions = validate_recall_precision(precisions)
     bin_asm_stats = BinStats(bins; assembly = true)

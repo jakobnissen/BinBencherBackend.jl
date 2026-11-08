@@ -91,6 +91,7 @@ end
 
 function finish!(ref::Reference)
     @isinit(ref.fraction_assembled) && return ref
+    isempty(ref.genomes) && error("Reference cannot have zero genomes")
     scratch = Tuple{Int, Int}[]
     foreach(g -> finish!(g, scratch), ref.genomes)
     assembly_size = genome_size = 0
@@ -151,26 +152,26 @@ function subset!(
         sequences::Function = Returns(true),
         genomes::Function = Returns(true),
     )::Reference
-    ref = uninit!(ref)
+    # Evaluate the predicates once, before mutating anything, such that we can
+    # error without leaving `ref` in a partially subsetted state.
+    mask = BitVector(sequences(first(i)) for i in ref.targets)
+    genomes_to_remove = Genome[g for g in ref.genomes if !(genomes(g)::Bool)]
+    if length(genomes_to_remove) == length(ref.genomes)
+        error("Reference cannot have zero genomes")
+    end
+    any(mask) || error("Cannot initialize a Reference with no sequences")
 
-    # Cache the sequences and genomes to remove in order to not
-    # need to compute the predicates multiple times
-    genomes_to_remove = Genome[]
+    ref = uninit!(ref)
     sources_to_remove = Set{Source}()
 
     # Update both ref.targets and ref.target_index_by_name
-    mask = BitVector(sequences(first(i)) for i in ref.targets)
     new_idx = cumsum(mask)
     keepat!(ref.targets, mask)
     filter!(kv -> mask[last(kv)], ref.target_index_by_name)
     map!(i -> new_idx[i], values(ref.target_index_by_name))
 
-    # Populate genomes_to_remove and remove the genomes from ref.genomes
-    filter!(ref.genomes) do g
-        keep = genomes(g)::Bool
-        keep || push!(genomes_to_remove, g)
-        keep
-    end
+    # Remove the genomes from ref.genomes
+    setdiff!(ref.genomes, genomes_to_remove)
 
     # Compute sources to remove, and remove the sources from ref.targets
     for genome in genomes_to_remove
@@ -361,7 +362,7 @@ function Reference(json_struct::ReferenceJSON)
 
     # Parse genomes
     for (genomename, flags, sourcesdict) in json_struct.genomes
-        genome = Genome(genomename, FlagSet(UInt(flags)))
+        genome = Genome(genomename, from_bits(FlagSet, flags))
         add_genome!(ref, genome)
         for (source_name, source_length) in sourcesdict
             add_source!(genome, source_name, source_length)
@@ -453,10 +454,11 @@ function parse_taxonomy(
         genomes::Set{Genome},
         taxmaps::Vector{Vector{Tuple{String, String}}},
     )::Vector{Vector{Clade{Genome}}}
+    result = Vector{Vector{Clade{Genome}}}()
+    isempty(genomes) && isempty(taxmaps) && return result
     child_by_name = Dict{String, Node}(g.name => g for g in genomes)
     assigned_children_names = Set{String}()
     parent_by_name = empty(child_by_name)
-    result = Vector{Vector{Clade{Genome}}}()
     for (rank, taxmap) in enumerate(taxmaps)
         cladeset = Clade{Genome}[]
         empty!(assigned_children_names)
@@ -490,8 +492,14 @@ function parse_taxonomy(
         empty!(parent_by_name)
         push!(result, cladeset)
     end
-    # Create top node, if needed
-    if length(last(result)) > 1
+    if isempty(taxmaps)
+        gns = collect(genomes)
+        top = Clade("top", gns[1])
+        for genome in @view(gns[2:end])
+            add_child!(top, genome)
+        end
+        return [[top]]
+    elseif length(last(result)) > 1
         top = Clade("top", first(last(result)))
         for child in @view(result[end][2:end])
             add_child!(top, child)

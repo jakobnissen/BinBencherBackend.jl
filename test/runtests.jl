@@ -114,6 +114,57 @@ end
 
     # Test versions
     @test_throws "Found reference version 1" Reference(joinpath(DIR, "ref_v1.json"))
+
+    # References with zero genomes error clearly, also with an empty rank,
+    # and also when subsetting all genomes away
+    seqs_json = """[["s1", 10, []]]"""
+    for taxmaps in ["[]", "[[]]"]
+        str = """{"version": 2, "taxmaps": $taxmaps, "genomes": [], "sequences": $seqs_json}"""
+        @test_throws "zero genomes" Reference(IOBuffer(str))
+    end
+    @test_throws "zero genomes" subset(ref; genomes = Returns(false))
+
+    # A failing subset! leaves the reference untouched and usable
+    ref_copy = deepcopy(ref)
+    @test_throws "zero genomes" subset!(ref_copy; genomes = Returns(false))
+    @test_throws "no sequences" subset!(ref_copy; sequences = Returns(false))
+    test_is_same_reference(ref, ref_copy)
+    @test occursin("Genomes:    3", repr(MIME"text/plain"(), ref_copy))
+
+    # Genomes, but no taxonomy: All genomes are placed directly under a top clade
+    notax_str = """
+    {
+        "version": 2,
+        "taxmaps": [],
+        "genomes": [["A", 1, [["sA", 100]]], ["B", 1, [["sB", 100]]]],
+        "sequences": [["s1", 50, [["sA", 1, 50]]], ["s2", 50, [["sB", 1, 50]]]]
+    }
+    """
+    notax = Reference(IOBuffer(notax_str))
+    @test BinBencherBackend.nranks(notax) == 2
+    @test top_clade(notax).ngenomes == 2
+    @test Set(top_clade(notax).children) == genomes(notax)
+    notax_bins = Binning(IOBuffer("clustername\tcontigname\nb\ts1\n"), notax)
+    @test n_recovered(notax_bins, 0.6, 0.6; level = 1) == 0
+    buf = IOBuffer()
+    BinBencherBackend.save(buf, notax)
+    test_is_same_reference(notax, Reference(IOBuffer(take!(buf))))
+
+    # More ranks than there are named ranks can be displayed
+    deep_taxmaps = join(
+        ["[[\"$(i == 1 ? "A" : "R$(i - 1)")\", \"R$(i)\"]]" for i in 1:10], ", "
+    )
+    deep_str = """
+    {
+        "version": 2,
+        "taxmaps": [$deep_taxmaps],
+        "genomes": [["A", 1, [["sA", 100]]]],
+        "sequences": [["s1", 50, [["sA", 1, 50]]]]
+    }
+    """
+    deep = Reference(IOBuffer(deep_str))
+    @test repr(top_clade(deep)) == "<Rank 10> \"R10\", 1 genome"
+    @test occursin("<Rank 9> \"R9\"", repr(MIME"text/plain"(), top_clade(deep)))
 end
 
 @testset "Sequence" begin
