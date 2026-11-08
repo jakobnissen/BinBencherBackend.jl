@@ -218,14 +218,23 @@ P\R   0.6  0.7  0.8  0.9 0.95 0.99
 ```
 
 You can also get the number of genomes or assemblies reconstructed at a given
-precision/recall level directly with `n_recovered`:
+precision/recall level directly with `n_recovered`.
+The thresholds must be among those the binning was benchmarked with:
 
 ```jldoctest walk
 julia> n_recovered(binning, 0.6, 0.7; assembly=true)
 1
 
-julia> n_recovered(binning, 0.66, 0.91; level=1)
+julia> n_recovered(binning, 0.7, 0.9; level=1)
 0
+```
+
+For other thresholds, `n_recovered_bounds` gives lower and upper bounds, from the
+nearest benchmarked thresholds above and below:
+
+```jldoctest walk
+julia> n_recovered_bounds(binning, 0.66, 0.91; level=1)
+(lower = 0, upper = 1)
 ```
 
 ## Bins

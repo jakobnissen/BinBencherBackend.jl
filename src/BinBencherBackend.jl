@@ -36,9 +36,10 @@ ifilter(f) = x -> Iterators.filter(f, x)
             Binning(io, ref)
         end
         print_matrix(IOBuffer(), bins)
-        n_recovered(bins, 0.4, 0.2)
-        n_recovered(bins, 0.4, 0.2; assembly = false)
-        n_recovered(bins, 0.4, 0.2; level = 1)
+        n_recovered(bins, 0.6, 0.6)
+        n_recovered(bins, 0.6, 0.6; assembly = false)
+        n_recovered(bins, 0.6, 0.6; level = 1)
+        n_recovered_bounds(bins, 0.65, 0.65)
     end
 end
 
@@ -67,7 +68,9 @@ export BinBencherException,
     top_clade,
     gold_standard,
     n_recovered,
+    n_recovered_bounds,
     n_passing_bins,
+    n_passing_bins_bounds,
     subset,
     subset!,
     f1,

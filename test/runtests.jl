@@ -22,6 +22,9 @@ using BinBencherBackend:
     f1,
     recall_precision,
     n_recovered,
+    n_recovered_bounds,
+    n_passing_bins,
+    n_passing_bins_bounds,
     n_seqs,
     n_bins,
     subset,
@@ -334,9 +337,9 @@ end
     @test bins isa Binning
     @test n_bins(bins) == 6
 
-    @test n_recovered(bins, 0.4, 0.71) == 1
-    @test n_recovered(bins, 0.4, 0.71; assembly = true) == 2
-    @test n_recovered(bins, 0.4, 0.71; assembly = true, level = 2) == 1
+    @test n_recovered(bins, 0.6, 0.8) == 1
+    @test n_recovered(bins, 0.6, 0.8; assembly = true) == 2
+    @test n_recovered(bins, 0.6, 0.8; assembly = true, level = 2) == 1
 
     allgenomes = collect(genomes(ref))
     for (ir, recall) in enumerate(bins.recalls)
@@ -364,13 +367,13 @@ end
 
     # Test filter_genomes works
     empty_binning = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes = Returns(false))
-    @test n_recovered(empty_binning, 0.1, 0.1) == 0
+    @test n_recovered(empty_binning, 0.6, 0.6) == 0
     @test all(m -> all(iszero, m), empty_binning.recovered_asms)
     @test all(m -> all(iszero, m), empty_binning.recovered_genomes)
 
     only_virus = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes = is_virus)
     @test BinBencherBackend.n_nc(only_virus) == 0
-    @test n_recovered(only_virus, 0.1, 0.1; assembly = true) == 1
+    @test n_recovered(only_virus, 0.6, 0.6; assembly = true) == 1
 
     # This test depends on the exact state of the ref and binning used
     @test all(m -> all(isone, m), only_virus.recovered_asms)
@@ -433,6 +436,73 @@ end
 
     # Test is disjoint
     @test is_disjoint(bins)
+end
+
+@testset "Threshold lookup" begin
+    ref = Reference(IOBuffer(REF_STR))
+    bins = Binning(IOBuffer(CLUSTERS_STR), ref)
+    rs = bins.recalls
+    ps = bins.precisions
+    cases = [
+        (n_recovered, n_recovered_bounds, false, bins.recovered_genomes),
+        (n_recovered, n_recovered_bounds, true, bins.recovered_asms),
+        (n_passing_bins, n_passing_bins_bounds, false, bins.bin_genomes),
+        (n_passing_bins, n_passing_bins_bounds, true, bins.bin_asms),
+    ]
+    for (exact, bounds, assembly, mats) in cases, (i, m) in enumerate(mats)
+        level = i - 1
+        for (ri, r) in enumerate(rs), (pi, p) in enumerate(ps)
+            @test exact(bins, r, p; level, assembly) == m[pi, ri]
+            @test bounds(bins, r, p; level, assembly) == (lower = m[pi, ri], upper = m[pi, ri])
+        end
+        # Between thresholds on both axes
+        for ri in 1:(length(rs) - 1), pi in 1:(length(ps) - 1)
+            r = (rs[ri] + rs[ri + 1]) / 2
+            p = (ps[pi] + ps[pi + 1]) / 2
+            @test bounds(bins, r, p; level, assembly) ==
+                (lower = m[pi + 1, ri + 1], upper = m[pi, ri])
+            # Exact on recall, between on precision
+            @test bounds(bins, rs[ri], p; level, assembly) ==
+                (lower = m[pi + 1, ri], upper = m[pi, ri])
+        end
+    end
+
+    # Default thresholds: 0.6, 0.7, 0.8, 0.9, 0.95, 0.99
+    @test n_recovered(bins, 0.6, 0.8) == bins.recovered_genomes[1][3, 1]
+    # Within tolerance
+    @test n_recovered(bins, 0.6 + 1.0e-7, 0.8 - 1.0e-7) == n_recovered(bins, 0.6, 0.8)
+    @test n_recovered(bins, 0.6f0, 0.8f0) == n_recovered(bins, 0.6, 0.8)
+    @test n_recovered_bounds(bins, 0.6f0, 0.8f0) == n_recovered_bounds(bins, 0.6, 0.8)
+    @test n_recovered(bins, 0.6 + 1.0e-4, 0.8; atol = 1.0e-3) == n_recovered(bins, 0.6, 0.8)
+    @test_throws ArgumentError n_recovered(bins, 0.6 + 1.0e-4, 0.8)
+
+    for f in [n_recovered, n_passing_bins]
+        # Not a benchmarked threshold
+        @test_throws ArgumentError f(bins, 0.65, 0.8)
+        @test_throws ArgumentError f(bins, 0.6, 0.85)
+        @test_throws ArgumentError f(bins, 0.4, 0.8)
+    end
+    for f in [n_recovered, n_passing_bins, n_recovered_bounds, n_passing_bins_bounds]
+        # Outside [0, 1]
+        @test_throws ArgumentError f(bins, -0.1, 0.8)
+        @test_throws ArgumentError f(bins, 0.6, 1.1)
+        @test_throws ArgumentError f(bins, NaN, 0.8)
+        # Bad level
+        @test_throws ArgumentError f(bins, 0.6, 0.8; level = -1)
+        @test_throws ArgumentError f(bins, 0.6, 0.8; level = length(bins.recovered_asms))
+    end
+    for f in [n_recovered_bounds, n_passing_bins_bounds]
+        # Outside the range of benchmarked thresholds
+        @test_throws ArgumentError f(bins, 0.5, 0.8)
+        @test_throws ArgumentError f(bins, 0.6, 0.5)
+        @test_throws ArgumentError f(bins, 0.995, 0.8)
+        @test_throws ArgumentError f(bins, 0.6, 1.0)
+    end
+
+    # n_nc is `nothing` when 0.9/0.95 were not benchmarked
+    @test BinBencherBackend.n_nc(bins) isa Int
+    tiny = Binning(IOBuffer(CLUSTERS_STR), ref; recalls = [0.5], precisions = [0.5])
+    @test isnothing(BinBencherBackend.n_nc(tiny))
 end
 
 @testset "Gold standard" begin
