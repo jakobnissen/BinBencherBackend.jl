@@ -52,8 +52,10 @@ mutable struct Clade{G}
 end
 
 @noinline function existing_parent_error(child_name, parent_name, other_parent_name)
-    error(
-        "Attempted to add parent \"$parent_name\" to child \"$child_name\", which already has parent \"$other_parent_name\"",
+    throw(
+        ArgumentError(
+            "Attempted to add parent \"$parent_name\" to child \"$child_name\", which already has parent \"$other_parent_name\"",
+        ),
     )
 end
 

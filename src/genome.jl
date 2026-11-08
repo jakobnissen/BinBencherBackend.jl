@@ -144,12 +144,18 @@ end
 Base.:(==)(g1::Genome, g2::Genome) = g1.name == g2.name
 Base.hash(x::Genome, h::UInt) = hash(x.name, h ⊻ UInt(21323125590))
 
+# Only called when parsing a reference file
 function add_source!(genome::Genome, name::AbstractString, length::Integer)
     @isinit(genome.genome_size) &&
         error("Can't add source to genome after calling finish! on it.")
+    is_valid_bb_identifier(name) || throw(ReferenceError(invalid_identifier_message(name)))
+    if length < 1
+        throw(ReferenceError("Source \"$(name)\" has length $(length), but must be at least 1"))
+    end
     source = Source(genome, name, length)
-    in(source, genome.sources) &&
-        error(lazy"Genome $(genome.name) already have source $(source.name)")
+    if in(source, genome.sources)
+        throw(ReferenceError("Genome \"$(genome.name)\" has source \"$(source.name)\" more than once"))
+    end
     push!(genome.sources, source)
     return genome
 end

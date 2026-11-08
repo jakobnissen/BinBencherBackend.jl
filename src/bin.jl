@@ -76,7 +76,7 @@ function Bin(
         considered_genomes::Union{Nothing, Set{Genome}} = nothing,
     )
     name = check_valid_identifier(String(name))
-    indices = [ref.target_index_by_name[s.name] for s in sequences]
+    indices = [sequence_index(ref, s) for s in sequences]
     scratch = Vector{Tuple{Int, Int}}()
     return bin_by_indices(name, indices, ref.targets, scratch, considered_genomes)
 end
@@ -86,12 +86,21 @@ end
     for i in seq_indices
         if in!(seen, i)
             seqname = first(targets[i]).name
-            error(lazy"Sequence \"$(seqname)\" is present multiple times in bin \"$(name)\"")
+            throw(ArgumentError("Sequence \"$(seqname)\" is present multiple times in bin \"$(name)\""))
         end
     end
     error("Unreachable") # we only call this function if there are duplicates
 end
 
+# Index of the sequence into `ref.targets`, for sequences passed through the API
+function sequence_index(ref::Reference, seq::Sequence)::UInt32
+    return @something get(ref.target_index_by_name, seq.name, nothing) throw(
+        ArgumentError("Sequence \"$(seq.name)\" is not in the reference")
+    )
+end
+
+# When parsing cluster files, the input is validated by the parser,
+# so the errors thrown here are from invalid input passed through the API.
 function bin_by_indices(
         name::AbstractString,
         seq_indices::Vector{<:Integer},
@@ -100,7 +109,7 @@ function bin_by_indices(
         considered_genomes::Union{Nothing, Set{Genome}},
     )::Bin
     seqs = [first(targets[i]) for i in seq_indices]
-    isempty(seqs) && error("Cannot construct empty Bin")
+    isempty(seqs) && throw(ArgumentError("Cannot construct empty Bin"))
     allunique(seq_indices) || duplicate_sequence_error(name, seq_indices, targets)
 
     # Which sequences map to the given genome, ints in bitset is indices into `seqs`.

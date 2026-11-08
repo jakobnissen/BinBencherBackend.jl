@@ -27,7 +27,10 @@ using BinBencherBackend:
     subset,
     subset!,
     is_disjoint,
-    adjusted_rand_index
+    adjusted_rand_index,
+    BinBencherException,
+    ReferenceError,
+    BinningError
 
 using CodecZlib: GzipCompressor
 using JSON: JSON
@@ -657,4 +660,170 @@ end
     big_a = Binning(IOBuffer("clustername\tcontigname\na\ts1\na\ts2\n"), big_ref)
     big_b = Binning(IOBuffer("clustername\tcontigname\na\ts1\nb\ts2\n"), big_ref)
     @test isapprox(adjusted_rand_index(big_a, big_b), 0.0; atol = 1.0e-9)
+end
+
+# Returns the exception thrown by `f`, or `nothing`
+function caught(f)
+    return try
+        f()
+        nothing
+    catch e
+        e
+    end
+end
+
+# Check that `f` throws an exception of type `T`, whose message contains `msg`
+function throws(f, ::Type{T}, msg::AbstractString) where {T}
+    e = caught(f)
+    return e isa T && occursin(msg, sprint(showerror, e))
+end
+
+@testset "Exceptions" begin
+    @test ReferenceError <: BinBencherException
+    @test BinningError <: BinBencherException
+    @test sprint(showerror, ReferenceError("abc")) == "ReferenceError: abc"
+    @test sprint(showerror, BinningError("abc", 5)) == "BinningError: line 5: abc"
+    @test sprint(showerror, BinningError("abc", nothing)) == "BinningError: abc"
+
+    @testset "Reference files" begin
+        # A small valid reference, with each part overridable
+        function ref_json(;
+                version = "2",
+                genomes = """[["A", 1, [["sA", 100]]], ["B", 1, [["sB", 100]]]]""",
+                sequences = """[["s1", 50, [["sA", 1, 50]]], ["s2", 50, [["sB", 1, 50]]]]""",
+                taxmaps = """[[["A", "X"], ["B", "X"]]]""",
+            )
+            return """{"version": $version, "genomes": $genomes, "sequences": $sequences, "taxmaps": $taxmaps}"""
+        end
+        load(; kwargs...) = Reference(IOBuffer(ref_json(; kwargs...)))
+        @test load() isa Reference
+
+        # Malformed JSON
+        for str in ["not json", "[1, 2]", "{\"version\": 2}", "{\"genomes\": []}"]
+            @test throws(() -> Reference(IOBuffer(str)), ReferenceError, "Malformed JSON")
+        end
+        @test throws(() -> load(; version = "\"2\""), ReferenceError, "integer field \"version\"")
+        @test throws(() -> load(; genomes = "5"), ReferenceError, "Malformed JSON")
+        @test throws(() -> load(; genomes = """[["A", "x", []]]"""), ReferenceError, "Malformed JSON")
+        @test throws(() -> load(; version = "1"), ReferenceError, "Found reference version 1")
+
+        # Empty
+        @test throws(() -> load(; genomes = "[]", taxmaps = "[]"), ReferenceError, "zero genomes")
+        @test throws(() -> load(; sequences = "[]"), ReferenceError, "zero sequences")
+
+        # Genomes and sources
+        @test throws(ReferenceError, "Invalid identifier") do
+            load(; genomes = """[["A\\r", 1, [["sA", 100]]], ["B", 1, [["sB", 100]]]]""")
+        end
+        for flags in [-1, 8]
+            @test throws(ReferenceError, "invalid flags $flags") do
+                load(; genomes = """[["A", $flags, [["sA", 100]]], ["B", 1, [["sB", 100]]]]""")
+            end
+        end
+        @test throws(ReferenceError, "Genome \"A\" is present more than once") do
+            load(; genomes = """[["A", 1, [["sA", 100]]], ["A", 1, [["sB", 100]]]]""")
+        end
+        @test throws(ReferenceError, "Invalid identifier") do
+            load(; genomes = """[["A", 1, [["s\\nA", 100]]], ["B", 1, [["sB", 100]]]]""")
+        end
+        @test throws(ReferenceError, "has length 0") do
+            load(; genomes = """[["A", 1, [["sA", 0]]], ["B", 1, [["sB", 100]]]]""")
+        end
+        @test throws(ReferenceError, "has source \"sA\" more than once") do
+            load(; genomes = """[["A", 1, [["sA", 100], ["sA", 10]]], ["B", 1, [["sB", 100]]]]""")
+        end
+        @test throws(ReferenceError, "Duplicate source") do
+            load(; genomes = """[["A", 1, [["sA", 100]]], ["B", 1, [["sA", 100]]]]""")
+        end
+
+        # Sequences
+        @test throws(ReferenceError, "Invalid identifier") do
+            load(; sequences = """[["s\\t1", 50, []]]""")
+        end
+        @test throws(ReferenceError, "has length 0") do
+            load(; sequences = """[["s1", 0, []]]""")
+        end
+        @test throws(ReferenceError, "no such source") do
+            load(; sequences = """[["s1", 50, [["sQ", 1, 50]]]]""")
+        end
+        @test throws(ReferenceError, "valid source indices are 1:100") do
+            load(; sequences = """[["s1", 50, [["sA", 60, 101]]]]""")
+        end
+        @test throws(ReferenceError, "Sequence \"s1\" is present more than once") do
+            load(; sequences = """[["s1", 50, []], ["s1", 50, []]]""")
+        end
+
+        # Taxonomy (parsed in another task)
+        @test throws(ReferenceError, "child \"A\" is present more than once") do
+            load(; taxmaps = """[[["A", "X"], ["A", "Y"], ["B", "X"]]]""")
+        end
+        @test throws(ReferenceError, "does not exist on the previous rank") do
+            load(; taxmaps = """[[["A", "X"], ["B", "X"], ["Q", "X"]]]""")
+        end
+        @test throws(ReferenceError, "child \"B\" has no parent") do
+            load(; taxmaps = """[[["A", "X"]]]""")
+        end
+        @test throws(ReferenceError, "Invalid identifier") do
+            load(; taxmaps = """[[["A", "X\\n"], ["B", "X\\n"]]]""")
+        end
+    end
+
+    @testset "Cluster files" begin
+        ref = Reference(IOBuffer(REF_STR))
+        header = "clustername\tcontigname\n"
+        load(str; kwargs...) = Binning(IOBuffer(str), ref; kwargs...)
+        # Returns (message, line) of the thrown BinningError, or nothing
+        function binning_error(str; kwargs...)
+            e = caught(() -> load(str; kwargs...))
+            return e isa BinningError ? (e.msg, e.line) : e
+        end
+
+        @test load(header * "a\ts1\n\nb\ts2\r\n") isa Binning
+        @test binning_error("") == ("Cluster file is empty, expected a header", 1)
+        (msg, line) = binning_error("name\tcontig\na\ts1\n")
+        @test occursin("Expected header", msg) && line == 1
+        @test binning_error(header * "a\ts1\na s2\n") ==
+            ("Expected two tab-separated fields, found one", 3)
+        @test binning_error(header * "a\ts1\n\na\ts2\tx\n") ==
+            ("Expected two tab-separated fields, found more", 4)
+        @test binning_error(header * "a\ts1\na\tsQ\n") ==
+            ("Sequence \"sQ\" is not in the reference", 3)
+        (msg, line) = binning_error(header * "a\ts1\na\rb\ts2\n")
+        @test occursin("Invalid identifier", msg) && line == 3
+        (msg, line) = binning_error(header * "a\ts1\n"; binsplit_separator = "C")
+        @test occursin("Binsplit separator", msg) && line == 2
+        @test binning_error(header * "a\ts1\nb\ts2\na\ts1\n"; disjoint = false) ==
+            ("Sequence \"s1\" is present multiple times in bin \"a\"", nothing)
+        @test binning_error(header * "a\ts1\nb\ts2\nb\ts1\n") == (
+            "Sequence \"s1\" is present in multiple bins, but `disjoint` is set to `true`", 4,
+        )
+    end
+
+    @testset "API misuse" begin
+        ref = Reference(IOBuffer(REF_STR))
+        g = Genome("g")
+        Clade("c", g)
+        for f in [
+                () -> Sequence("a\tb", 5),
+                () -> Sequence("a", 0),
+                () -> Genome("a\nb"),
+                () -> Source(g, "s", 0),
+                () -> Source(g, "s\r", 5),
+                () -> Clade("d", g),
+                () -> Bin("b", ref, Sequence[]),
+                () -> Bin("b", ref, [Sequence("sQ", 5)]),
+                () -> Bin("b", ref, [Sequence("s1", 25), Sequence("s1", 25)]),
+                () -> Binning(IOBuffer(CLUSTERS_STR), ref; recalls = [0.0]),
+                () -> Binning(IOBuffer(CLUSTERS_STR), ref; precisions = [0.5, 0.5]),
+                () -> Binning(IOBuffer(CLUSTERS_STR), ref; recalls = Float64[]),
+                () -> subset(ref; genomes = Returns(false)),
+                () -> subset(ref; sequences = Returns(false)),
+                () -> gold_standard(ref; binsplit_separator = "QQ"),
+                () -> gold_standard(ref, [Sequence("sQ", 5)]),
+            ]
+            @test caught(f) isa ArgumentError
+        end
+        bin = Bin("b", ref, [Sequence("s1", 25)])
+        @test caught(() -> Binning([bin, bin], ref)) isa ArgumentError
+    end
 end

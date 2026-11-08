@@ -7,6 +7,7 @@ using StructTypes: StructTypes
 using LazilyInitializedFields: @lazy, @isinit, @init!, @uninit!, uninit
 using PrecompileTools: @setup_workload, @compile_workload
 
+include("exceptions.jl")
 include("utils.jl")
 include("flags.jl")
 include("sequence.jl")
@@ -41,7 +42,10 @@ ifilter(f) = x -> Iterators.filter(f, x)
     end
 end
 
-export Sequence,
+export BinBencherException,
+    ReferenceError,
+    BinningError,
+    Sequence,
     flags,
     Flag,
     Flags,

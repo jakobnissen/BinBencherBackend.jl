@@ -333,8 +333,17 @@ function Binning(
         filter_genomes::Function = Returns(true),
         filter_bins::Function = Returns(true),
     )
-    (idxs_by_binname, is_disjoint) = parse_bins(io, Dict, ref, binsplit_separator)
-    disjoint && !is_disjoint && throw_disjoint_error()
+    (idxs_by_binname, first_non_disjoint) = parse_bins(io, Dict, ref, binsplit_separator)
+    is_disjoint = first_non_disjoint === nothing
+    if disjoint && !is_disjoint
+        (line_number, seqname) = first_non_disjoint
+        throw(
+            BinningError(
+                "Sequence \"$(seqname)\" is present in multiple bins, but `disjoint` is set to `true`",
+                line_number,
+            ),
+        )
+    end
     filter!(idxs_by_binname) do (_, idxs)
         length(idxs) ≥ min_seqs &&
             sum((length(first(ref.targets[i])) for i in idxs); init = 0) ≥ min_size
@@ -478,7 +487,7 @@ function gold_standard(
     # else all the genomes it maps to.
     sequences_of_genome = Dict{Genome, Vector{Sequence}}()
     for sequence in sequences
-        targets = last(ref.targets[ref.target_index_by_name[sequence.name]])
+        targets = last(ref.targets[sequence_index(ref, sequence)])
         isempty(targets) && continue
         # If disjoint, pick the genome where the sequence aligns to the longest span
         best_index = disjoint ? last(findmax(span_length, targets)) : 0
@@ -508,8 +517,10 @@ function gold_standard(
             empty!(seqs_by_sample)
             for sequence in seqs
                 splt = @inline split_once(sequence.name, binsplit_separator)
-                (prefix, _) = @something splt error(
-                    lazy"Seperator $binsplit_separator not found in seq name $(sequence.name)"
+                (prefix, _) = @something splt throw(
+                    ArgumentError(
+                        "Binsplit separator $(repr(binsplit_separator)) not found in sequence name $(repr(sequence.name))"
+                    )
                 )
                 index = ref.target_index_by_name[sequence.name]
                 push!(get!(valtype(seqs_by_sample), seqs_by_sample, prefix), index)
@@ -547,13 +558,13 @@ function validate_recall_precision(xs)::Vector{Float64}
     s = Set{Float64}()
     for x_ in xs
         x = Float64(x_)
-        x in s && error(lazy"Recall/precision value $x present multiple times")
+        x in s && throw(ArgumentError("Recall/precision value $x present multiple times"))
         if !isfinite(x) || x <= 0.0 || x > 1.0
-            error(lazy"Recall precision value $x is not finite in (0,1]")
+            throw(ArgumentError("Recall/precision value $x is not in (0,1]"))
         end
         push!(s, x)
     end
-    isempty(s) && error("Must provide at least 1 recall/precision value")
+    isempty(s) && throw(ArgumentError("Must provide at least 1 recall/precision value"))
     return sort!(collect(s))
 end
 

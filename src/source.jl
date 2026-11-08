@@ -7,7 +7,7 @@
     @lazy total_bp::Int
 
     function Source(genome::G, name::AbstractString, length::Integer) where {G}
-        length ≤ 0 && error("Source length must be at least 1")
+        length ≤ 0 && throw(ArgumentError("Source length must be at least 1"))
         new{G}(
             check_valid_identifier(String(name)),
             genome,
@@ -39,12 +39,17 @@ Source
 Base.:(==)(s1::Source, s2::Source) = s1.name == s2.name
 Base.hash(x::Source, h::UInt) = hash(x.name, h ⊻ UInt(344509130945))
 
+# Only called when parsing a reference file
 function add_sequence!(source::Source, seq::Sequence, span::Tuple{Int, Int})
     (small, big) = minmax(span...)
-    (small < 1 || big > source.length) && error(
-        lazy"Attempted to add sequence \"$(seq.name)\" to source \"$(source.name)\" ",
-        lazy"at span $(first(span)):$(last(span)), but valid source indices are 1:$(source.length)",
-    )
+    if small < 1 || big > source.length
+        throw(
+            ReferenceError(
+                "Sequence \"$(seq.name)\" maps to source \"$(source.name)\" " *
+                    "at span $(first(span)):$(last(span)), but valid source indices are 1:$(source.length)",
+            ),
+        )
+    end
     @isinit(source.assembly_size) &&
         error("Can't add sequence to source after calling finish! on it.")
     push!(source.sequences, (seq, span))
