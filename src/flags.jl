@@ -7,6 +7,8 @@ using .Flags
 
 const NAME_TO_FLAG = Dict(string(f) => f for f in instances(Flags.Flag))
 
+const MAX_FLAG_BITS = (1 << length(NAME_TO_FLAG) - 1) % UInt
+
 Base.tryparse(::Type{Flag}, s::AbstractString) = get(NAME_TO_FLAG, lowercase(s), nothing)
 
 @doc """
@@ -56,10 +58,17 @@ struct FlagSet <: AbstractSet{Flag}
     # as well have the content be bits here instead of padding
     x::UInt64
 
-    FlagSet(x::UInt64) = new(x)
+    global new_flagset(x::UInt64) = new(x)
 end
 
-FlagSet() = FlagSet(zero(UInt64))
+function from_bits(::Type{FlagSet}, x::Integer)
+    if x < 0 || x > MAX_FLAG_BITS
+        error("Invalid FlagSet: Must be in 0:$(MAX_FLAG_BITS), got $(x)")
+    end
+    return new_flagset(UInt(x))
+end
+
+FlagSet() = new_flagset(zero(UInt64))
 
 function FlagSet(itr)
     result = FlagSet()
@@ -77,13 +86,14 @@ function Base.iterate(x::FlagSet, state::UInt64 = x.x)
     end
 end
 
-push(x::FlagSet, y::Flag) = FlagSet(x.x | (UInt64(1) << (reinterpret(UInt8, y) & 63)))
+push(x::FlagSet, y::Flag) = new_flagset(x.x | (UInt64(1) << (reinterpret(UInt8, y) & 63)))
 Base.in(flag::Flag, x::FlagSet) = isodd(x.x >>> (reinterpret(UInt8, flag) & UInt8(63)))
 Base.length(x::FlagSet) = count_ones(x.x)
 Base.isempty(x::FlagSet) = iszero(x.x)
 Base.hash(x::FlagSet, h::UInt) = hash(x.x, h ⊻ (0x116133601de11a93 % UInt))
-Base.union(x::FlagSet, y::FlagSet) = FlagSet(x.x | y.x)
-Base.intersect(x::FlagSet, y::FlagSet) = FlagSet(x.x & y.x)
-Base.setdiff(x::FlagSet, y::FlagSet) = FlagSet(x.x & ~y.x)
+Base.:(==)(x::FlagSet, y::FlagSet) = x === y
+Base.union(x::FlagSet, y::FlagSet) = new_flagset(x.x | y.x)
+Base.intersect(x::FlagSet, y::FlagSet) = new_flagset(x.x & y.x)
+Base.setdiff(x::FlagSet, y::FlagSet) = new_flagset(x.x & ~y.x)
 Base.issubset(x::FlagSet, y::FlagSet) = isempty(setdiff(x, y))
 Base.isdisjoint(x::FlagSet, y::FlagSet) = isempty(x ∩ y)
