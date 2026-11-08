@@ -1,7 +1,7 @@
 name = "BinBencherBackend"
 uuid = "63a9268e-b9e5-4a07-aba6-1f52d4878f75"
-version = "0.3.6"
-authors = ["Jakob Nybo Nissen <jakobnybonissen@gmail.com>"]
+version = "0.4.0"
+authors = ["Jakob Nybo Andersen <jnandersen@proton.me>"]
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
@@ -20,7 +20,7 @@ LazilyInitializedFields = "1.2"
 PrecompileTools = "1"
 StructTypes = "1.9"
 Test = "1.9"
-julia = "1.9"
+julia = "1.14"
 
 [extras]
 JSONSchema = "7d188eb4-7ad8-530c-ae41-71a32a6d4692"

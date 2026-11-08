@@ -1,6 +1,9 @@
 [deps]
-Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 BinBencherBackend = "63a9268e-b9e5-4a07-aba6-1f52d4878f75"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+
+[sources]
+BinBencherBackend = {path = ".."}
 
 [compat]
 Documenter = "1"
