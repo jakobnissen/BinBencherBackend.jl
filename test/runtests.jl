@@ -290,6 +290,16 @@ end
     for i in 1:4, j in (i + 1):5
         @test refs[i] !== refs[j]
     end
+
+    # `subset` copies the reference without using `deepcopy`. Check it gives the
+    # same result as subsetting a deepcopy, and that it doesn't share mutable state.
+    test_is_same_reference(ref2, subset!(deepcopy(ref); sequences = seq_pred))
+    test_is_same_reference(ref5, subset!(deepcopy(ref); sequences = seq_pred, genomes = genome_pred))
+    copied = subset(ref)
+    test_is_same_reference(ref, copied)
+    @test isdisjoint(Set(objectid.(genomes(ref))), Set(objectid.(genomes(copied))))
+    @test top_clade(ref) !== top_clade(copied)
+    @test ref.target_index_by_name !== copied.target_index_by_name
     @test (ngenomes(ref3) + 1 == ngenomes(ref) == ngenomes(ref4) + 1 == ngenomes(ref5) + 1)
     @test (n_seqs(ref2) == n_seqs(ref4) == n_seqs(ref5))
     @test (n_seqs(ref) == n_seqs(ref3) != n_seqs(ref2))

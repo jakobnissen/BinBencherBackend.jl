@@ -26,14 +26,13 @@ ifilter(f) = x -> Iterators.filter(f, x)
     binpath = joinpath(dir, "clusters.tsv")
 
     @compile_workload begin
-        ref = open(refpath) do io
-            Reference(io)
-        end
+        # Load from paths, since that is the most common usage. These also compile
+        # the methods taking an IOStream.
+        ref = Reference(refpath)
         subset!(ref; sequences = Returns(true), genomes = Returns(true))
+        subset(ref; sequences = Returns(true), genomes = Returns(true))
         gold_standard(ref)
-        bins = open(binpath) do io
-            Binning(io, ref)
-        end
+        bins = Binning(binpath, ref)
         print_matrix(IOBuffer(), bins)
         n_recovered(bins, 0.6, 0.6)
         n_recovered(bins, 0.6, 0.6; assembly = false)

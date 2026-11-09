@@ -248,18 +248,20 @@ function subset!(
     return finish!(ref)
 end
 
-# This deepcopy is quite slow, and it would be nice to optimise it.
-# However, manual deepcopying of references is quite error prone, and having
-# an incomplete deepcopy could lead to nasty bugs, so I'll just eat it.
 """
     subset(ref::Reference; kwargs...)
 
 Non-mutating copying version of `subset!`.
-This is currently much slower than `subset!`.
+This is slower than `subset!`, since it copies `ref` first.
 
 See also: [`subset!`](@ref)
 """
-subset(ref::Reference; kwargs...) = subset!(deepcopy(ref); kwargs...)
+function subset(ref::Reference; kwargs...)
+    # We copy by converting to and from the JSON representation, since this is
+    # much faster than `deepcopy`, and reuses the code paths for saving and loading
+    # references, so it can't silently produce an incomplete copy.
+    return subset!(Reference(ReferenceJSON(ref)); kwargs...)
+end
 
 function unfinish!(ref::Reference)
     ref.stats = nothing
@@ -556,14 +558,13 @@ function Reference(json_struct::ReferenceJSON)
     return finish!(ref)
 end
 
-function save(io::IO, ref::Reference)
-    json_dict = Dict{String, Any}()
-    json_dict["version"] = JSON_VERSION
+# The JSON representation of a reference. Loading it with `Reference(::ReferenceJSON)`
+# creates a reference equal to `ref`.
+function ReferenceJSON(ref::Reference)
     # Genomes
     genomes::GENOMES_JSON_T = [
         (genome.name, Int(genome.flags.x), [(s.name, s.length) for s in genome.sources]) for genome in ref.genomes
     ]
-    json_dict["genomes"] = genomes
 
     # Sequences
     sequences::SEQUENCES_JSON_T = [
@@ -574,12 +575,9 @@ function save(io::IO, ref::Reference)
         ) for (seq, targets) in ref.targets
     ]
 
-    json_dict["sequences"] = sequences
-
     # Taxmaps
     taxmaps::TAXMAPS_JSON_T =
         [[(genome.name, parent_clade(genome).name) for genome in ref.genomes]]
-    json_dict["taxmaps"] = taxmaps
 
     for clades in ref.clades
         length(clades) == 1 && isnothing(only(clades).parent) && break
@@ -591,8 +589,10 @@ function save(io::IO, ref::Reference)
         end
     end
 
-    return JSON.json(io, json_dict)
+    return ReferenceJSON(JSON_VERSION, genomes, sequences, taxmaps)
 end
+
+save(io::IO, ref::Reference) = JSON.json(io, ReferenceJSON(ref))
 
 # Invariants for the input list:
 # The input is a vector of ranks, consisting of (child, parent) names
