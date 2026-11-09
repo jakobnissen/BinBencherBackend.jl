@@ -3,7 +3,6 @@ module BinBencherBackend
 using AbstractTrees: AbstractTrees
 using CodecZlib: GzipDecompressorStream
 using JSON: JSON
-using StructTypes: StructTypes
 using PrecompileTools: @setup_workload, @compile_workload
 
 include("exceptions.jl")

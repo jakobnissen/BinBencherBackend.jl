@@ -423,7 +423,6 @@ struct ReferenceJSON
     sequences::SEQUENCES_JSON_T
     taxmaps::TAXMAPS_JSON_T
 end
-StructTypes.StructType(::Type{ReferenceJSON}) = StructTypes.Struct()
 
 Reference(path::AbstractString) = open_perhaps_gzipped(i -> Reference(i), String(path))
 
