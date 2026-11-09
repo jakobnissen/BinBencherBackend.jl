@@ -61,10 +61,9 @@ struct FlagSet <: AbstractSet{Flag}
     global new_flagset(x::UInt64) = new(x)
 end
 
-function from_bits(::Type{FlagSet}, x::Integer)
-    if x < 0 || x > MAX_FLAG_BITS
-        error("Invalid FlagSet: Must be in 0:$(MAX_FLAG_BITS), got $(x)")
-    end
+# Returns `nothing` if `x` does not encode a valid FlagSet
+function try_from_bits(::Type{FlagSet}, x::Integer)::Union{FlagSet, Nothing}
+    (x < 0 || x > MAX_FLAG_BITS) && return nothing
     return new_flagset(UInt(x))
 end
 

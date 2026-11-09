@@ -3,13 +3,13 @@ module BinBencherBackend
 using AbstractTrees: AbstractTrees
 using CodecZlib: GzipDecompressorStream
 using JSON: JSON
-using StructTypes: StructTypes
-using LazilyInitializedFields: @lazy, @isinit, @init!, @uninit!, uninit
 using PrecompileTools: @setup_workload, @compile_workload
 
+include("exceptions.jl")
 include("utils.jl")
 include("flags.jl")
 include("sequence.jl")
+include("types.jl")
 include("source.jl")
 include("clade.jl")
 include("genome.jl")
@@ -26,22 +26,25 @@ ifilter(f) = x -> Iterators.filter(f, x)
     binpath = joinpath(dir, "clusters.tsv")
 
     @compile_workload begin
-        ref = open(refpath) do io
-            Reference(io)
-        end
+        # Load from paths, since that is the most common usage. These also compile
+        # the methods taking an IOStream.
+        ref = Reference(refpath)
         subset!(ref; sequences = Returns(true), genomes = Returns(true))
+        subset(ref; sequences = Returns(true), genomes = Returns(true))
         gold_standard(ref)
-        bins = open(binpath) do io
-            Binning(io, ref)
-        end
+        bins = Binning(binpath, ref)
         print_matrix(IOBuffer(), bins)
-        n_recovered(bins, 0.4, 0.2)
-        n_recovered(bins, 0.4, 0.2; assembly = false)
-        n_recovered(bins, 0.4, 0.2; level = 1)
+        n_recovered(bins, 0.6, 0.6)
+        n_recovered(bins, 0.6, 0.6; assembly = false)
+        n_recovered(bins, 0.6, 0.6; level = 1)
+        n_recovered_bounds(bins, 0.65, 0.65)
     end
 end
 
-export Sequence,
+export BinBencherException,
+    ReferenceError,
+    BinningError,
+    Sequence,
     flags,
     Flag,
     Flags,
@@ -57,13 +60,19 @@ export Sequence,
     intersecting,
     recall_precision,
     genomes,
+    genome_size,
+    assembly_size,
+    shortest_seq_len,
+    fraction_assembled,
     is_organism,
     is_virus,
     is_plasmid,
     top_clade,
     gold_standard,
     n_recovered,
+    n_recovered_bounds,
     n_passing_bins,
+    n_passing_bins_bounds,
     subset,
     subset!,
     f1,
@@ -77,5 +86,7 @@ export Sequence,
     print_matrix,
     is_disjoint,
     adjusted_rand_index
+
+public total_bp
 
 end # module

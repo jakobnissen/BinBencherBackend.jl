@@ -1,11 +1,16 @@
-@lazy mutable struct Reference
+# See the comment on GenomeStats
+struct ReferenceStats
+    shortest_seq_len::Int
+    fraction_assembled::Float64
+end
+
+mutable struct Reference
     const genomes::Set{Genome}
     # Sequence name => index into targets
     const target_index_by_name::Dict{String, UInt32}
     const targets::Vector{Tuple{Sequence, Vector{Target}}}
-    const clades::Vector{Vector{Clade{Genome}}}
-    @lazy shortest_seq_len::Int
-    @lazy fraction_assembled::Float64
+    const clades::Vector{Vector{Clade}}
+    stats::Union{ReferenceStats, Nothing}
 end
 
 """
@@ -52,9 +57,8 @@ function new_reference()
         Set{Genome}(),
         Dict{String, Int}(),
         Vector{Tuple{Sequence, Vector{Target}}}(),
-        Vector{Clade{Genome}}[],
-        uninit,
-        uninit,
+        Vector{Clade}[],
+        nothing,
     )
 end
 
@@ -73,9 +77,9 @@ function Base.show(io::IO, ::MIME"text/plain", x::Reference)
             "\n  Ranks:      ",
             nranks(x),
             "\n  Seq length: ",
-            x.shortest_seq_len,
+            shortest_seq_len(x),
             "\n  Assembled:  ",
-            round(x.fraction_assembled * 100; digits = 1),
+            round(fraction_assembled(x) * 100; digits = 1),
             " %",
         )
     end
@@ -89,21 +93,55 @@ function nranks(x::Reference)
     return length(x.clades) + 1
 end
 
+function finished_stats(x::Reference)::ReferenceStats
+    stats = x.stats
+    stats === nothing && unfinished_error(x)
+    return stats
+end
+
+"""
+    shortest_seq_len(ref::Reference)::Int
+
+Get the length of the shortest sequence in the `Reference`.
+
+# Examples
+```jldoctest
+julia> shortest_seq_len(ref)
+10
+```
+"""
+shortest_seq_len(x::Reference) = finished_stats(x).shortest_seq_len
+
+"""
+    fraction_assembled(ref::Reference)::Float64
+
+Get the fraction of the total genome size of all genomes in the `Reference`
+which is covered by at least one sequence.
+
+See also: [`assembly_size`](@ref), [`genome_size`](@ref)
+
+# Examples
+```jldoctest
+julia> round(fraction_assembled(ref); digits = 3)
+0.619
+```
+"""
+fraction_assembled(x::Reference) = finished_stats(x).fraction_assembled
+
 function finish!(ref::Reference)
-    @isinit(ref.fraction_assembled) && return ref
+    ref.stats === nothing || return ref
+    # These are checked by the reference parser and by `subset!`, so if this fails, it's a bug
     isempty(ref.genomes) && error("Reference cannot have zero genomes")
     scratch = Tuple{Int, Int}[]
     foreach(g -> finish!(g, scratch), ref.genomes)
-    assembly_size = genome_size = 0
+    total_assembly_size = total_genome_size = 0
     for genome in ref.genomes
-        assembly_size += genome.assembly_size
-        genome_size += genome.genome_size
+        total_assembly_size += assembly_size(genome)
+        total_genome_size += genome_size(genome)
     end
-    shortest_seq_len = minimum(i -> length(first(i)), ref.targets; init = typemax(Int))
-    shortest_seq_len == typemax(Int) &&
-        error("Cannot initialize a Reference with no sequences")
-    @init! ref.shortest_seq_len = shortest_seq_len
-    @init! ref.fraction_assembled = assembly_size / genome_size
+    shortest = minimum(i -> length(first(i)), ref.targets; init = typemax(Int))
+    shortest == typemax(Int) && error("Cannot initialize a Reference with no sequences")
+    ref.stats = ReferenceStats(shortest, total_assembly_size / total_genome_size)
     return ref
 end
 
@@ -157,11 +195,13 @@ function subset!(
     mask = BitVector(sequences(first(i)) for i in ref.targets)
     genomes_to_remove = Genome[g for g in ref.genomes if !(genomes(g)::Bool)]
     if length(genomes_to_remove) == length(ref.genomes)
-        error("Reference cannot have zero genomes")
+        throw(ArgumentError("Subsetting would leave the reference with zero genomes"))
     end
-    any(mask) || error("Cannot initialize a Reference with no sequences")
+    if !any(mask)
+        throw(ArgumentError("Subsetting would leave the reference with no sequences"))
+    end
 
-    ref = uninit!(ref)
+    ref = unfinish!(ref)
     sources_to_remove = Set{Source}()
 
     # Update both ref.targets and ref.target_index_by_name
@@ -194,7 +234,7 @@ function subset!(
     for i in (length(ref.clades) - 1):-1:1
         empty!(ref.clades[i])
         for parent in ref.clades[i + 1]
-            union!(ref.clades[i], parent.children::Vector{Clade{Genome}})
+            union!(ref.clades[i], parent.children::Vector{Clade})
         end
     end
 
@@ -208,39 +248,42 @@ function subset!(
     return finish!(ref)
 end
 
-# This deepcopy is quite slow, and it would be nice to optimise it.
-# However, manual deepcopying of references is quite error prone, and having
-# an incomplete deepcopy could lead to nasty bugs, so I'll just eat it.
 """
     subset(ref::Reference; kwargs...)
 
 Non-mutating copying version of `subset!`.
-This is currently much slower than `subset!`.
+This is slower than `subset!`, since it copies `ref` first.
 
 See also: [`subset!`](@ref)
 """
-subset(ref::Reference; kwargs...) = subset!(deepcopy(ref); kwargs...)
+function subset(ref::Reference; kwargs...)
+    # We copy by converting to and from the JSON representation, since this is
+    # much faster than `deepcopy`, and reuses the code paths for saving and loading
+    # references, so it can't silently produce an incomplete copy.
+    return subset!(Reference(ReferenceJSON(ref)); kwargs...)
+end
 
-function uninit!(ref::Reference)
-    @uninit! ref.fraction_assembled
-    @uninit! ref.shortest_seq_len
+function unfinish!(ref::Reference)
+    ref.stats = nothing
     for genome in ref.genomes
-        @uninit! genome.genome_size
-        @uninit! genome.assembly_size
+        genome.stats = nothing
         for source in genome.sources
-            @uninit! source.assembly_size
-            @uninit! source.total_bp
+            source.stats = nothing
         end
     end
     return ref
 end
 
+# Only called when parsing a reference file
 function add_genome!(ref::Reference, genome::Genome)
-    in(genome, ref.genomes) && error(lazy"Genome $(genome.name) already in reference")
+    if in(genome, ref.genomes)
+        throw(ReferenceError("Genome \"$(genome.name)\" is present more than once"))
+    end
     push!(ref.genomes, genome)
     return ref
 end
 
+# Only called when parsing a reference file
 function add_sequence!(ref::Reference, seq::Sequence, targets::Vector{Target})
     for (source, span) in targets
         add_sequence!(source, seq, span)
@@ -249,42 +292,101 @@ function add_sequence!(ref::Reference, seq::Sequence, targets::Vector{Target})
     # We disallow a sequence with index typemax(UInt32) so we can use that number
     # to encode a missing sequence
     if L == typemax(UInt32) - 1
-        error("References can only hold 4294967294 sequences")
+        throw(ReferenceError("References can only hold 4294967294 sequences"))
     end
     i = get!(ref.target_index_by_name, seq.name, L + 1)
     if i != L + 1
-        error(lazy"Duplicate sequence in reference: $(seq.name)")
+        throw(ReferenceError("Sequence \"$(seq.name)\" is present more than once"))
     end
     push!(ref.targets, (seq, targets))
     return ref
 end
 
+const CLUSTER_FILE_HEADER = "clustername\tcontigname"
+
+# Parse a cluster file, returning the indices (into `ref.targets`) of the sequences
+# of each bin, and, if the binning is not disjoint, the line and name of the
+# first sequence seen in more than one bin.
 function parse_bins(
         io::IO,
         ::Type{Dict},
         ref::Reference,
         binsplit_sep::Union{Nothing, AbstractString, Char} = nothing,
-    )::Tuple{Dict{<:AbstractString, <:Vector{<:Integer}}, Bool}
-    lines = eachline(io)
-    header = "clustername\tcontigname"
-    it = iterate(lines)
-    if (isnothing(it) ? nothing : rstrip(first(it))) != header
-        error(lazy"Expected following header line in cluster file: $(repr(header))")
-    end
-    itr = tab_pairs(lines)
-    itr = isnothing(binsplit_sep) ? itr : binsplit_tab_pairs(itr, binsplit_sep)
+    )::Tuple{Dict{SubString{String}, Vector{UInt32}}, Union{Nothing, Tuple{Int, String}}}
     seen_indices = falses(length(ref.targets))
     idxs_by_binname = Dict{SubString{String}, Vector{UInt32}}()
-    is_disjoint = true
-    @inbounds for (binname, seqname) in itr
-        i = ref.target_index_by_name[seqname]
-        if seen_indices[i]
-            is_disjoint = false
+    first_non_disjoint = nothing
+    seen_header = false
+    for (line_number, full_line) in enumerate(eachline(io))
+        line = rstrip(full_line)
+        if !seen_header
+            if line != CLUSTER_FILE_HEADER
+                throw(
+                    BinningError(
+                        "Expected header $(repr(CLUSTER_FILE_HEADER)), got $(repr(line))", line_number
+                    ),
+                )
+            end
+            seen_header = true
+            continue
+        end
+        isempty(line) && continue
+        (binname, seqname) = parse_cluster_line(line, line_number)
+        if binsplit_sep !== nothing
+            (before, _) = @something split_once(seqname, binsplit_sep) throw(
+                BinningError(
+                    "Binsplit separator $(repr(binsplit_sep)) not found in sequence name $(repr(seqname))",
+                    line_number,
+                ),
+            )
+            joined = string(before, binname)
+            binname = SubString(joined, 1:lastindex(joined))
+        end
+        i = get(ref.target_index_by_name, seqname, nothing)
+        if i === nothing
+            throw(BinningError("Sequence $(repr(seqname)) is not in the reference", line_number))
+        end
+        if seen_indices[i] && first_non_disjoint === nothing
+            first_non_disjoint = (line_number, String(seqname))
         end
         seen_indices[i] = true
         push!(get!(valtype(idxs_by_binname), idxs_by_binname, binname), i)
     end
-    return (idxs_by_binname, is_disjoint)
+    seen_header || throw(BinningError("Cluster file is empty, expected a header", 1))
+    # A sequence may be in multiple bins (if not disjoint), but never twice in the same bin
+    for (binname, idxs) in idxs_by_binname
+        if !allunique(idxs)
+            seen = Set{UInt32}()
+            dup = first(i for i in idxs if in!(seen, i))
+            seqname = first(ref.targets[dup]).name
+            throw(
+                BinningError(
+                    "Sequence \"$(seqname)\" is present multiple times in bin \"$(binname)\"", nothing
+                ),
+            )
+        end
+    end
+    return (idxs_by_binname, first_non_disjoint)
+end
+
+# Split a cluster file line into (bin name, sequence name)
+function parse_cluster_line(line::SubString{String}, line_number::Int)
+    cu = codeunits(line)
+    t1 = findfirst(isequal(UInt8('\t')), cu)
+    t1 === nothing && throw(BinningError("Expected two tab-separated fields, found one", line_number))
+    t2 = findnext(isequal(UInt8('\t')), cu, t1 + 1)
+    if t2 !== nothing
+        throw(BinningError("Expected two tab-separated fields, found more", line_number))
+    end
+    binname = SubString(line, 1:prevind(line, t1))
+    seqname = SubString(line, (t1 + 1):lastindex(line))
+    # Tabs and newlines can't be present, but a \r could be
+    for name in (binname, seqname)
+        if !is_valid_bb_identifier(name)
+            throw(BinningError(invalid_identifier_message(name), line_number))
+        end
+    end
+    return (binname, seqname)
 end
 
 const JSON_VERSION = 2
@@ -323,32 +425,49 @@ struct ReferenceJSON
     sequences::SEQUENCES_JSON_T
     taxmaps::TAXMAPS_JSON_T
 end
-StructTypes.StructType(::Type{ReferenceJSON}) = StructTypes.Struct()
 
 Reference(path::AbstractString) = open_perhaps_gzipped(i -> Reference(i), String(path))
 
 function Reference(io::IO)
+    str = read(io, String)
+    # The JSON library throws its own exceptions on invalid JSON, so we catch
+    # everything thrown by these library calls (and only these calls).
+    # Their only input is the file content, so any exception they throw means that
+    # the file is malformed.
     # First, determine the version of the JSON file to see if this version of BBB
     # can even deserialize it.
-    str = read(io, String)
-    lazy_json = JSON.lazy(str)
-    let
+    (lazy_json, version) = try
+        lazy_json = JSON.lazy(str)
         v = get(lazy_json, :version, nothing)
-        if v === nothing
-            error("Malformed JSON format: Did not contain a top-level field called \"version\"")
-        end
-        v = v[]
-        if !(v isa Int)
-            error("Invalid JSON file: Field \"version\" is not an integer")
-        end
-        if v != JSON_VERSION
-            error(
-                lazy"Found reference version $(v), but the supported version of the ",
-                lazy"currently loaded version of BinBencherBackend is $(JSON_VERSION)."
-            )
-        end
+        (lazy_json, v === nothing ? nothing : v[])
+    catch e
+        e isa InterruptException && rethrow()
+        throw(ReferenceError("Malformed JSON: " * sprint(showerror, e)))
     end
-    return Reference(JSON.parse(lazy_json, ReferenceJSON))
+    # Note: If the top-level value is an array, `version` is not `nothing`, but
+    # neither is it an integer
+    if !(version isa Int)
+        throw(
+            ReferenceError(
+                "Malformed JSON: Expected a top-level object with an integer field \"version\""
+            ),
+        )
+    end
+    if version != JSON_VERSION
+        throw(
+            ReferenceError(
+                "Found reference version $(version), but the supported version of the " *
+                    "currently loaded version of BinBencherBackend is $(JSON_VERSION).",
+            ),
+        )
+    end
+    json_struct = try
+        JSON.parse(lazy_json, ReferenceJSON)
+    catch e
+        e isa InterruptException && rethrow()
+        throw(ReferenceError("Malformed JSON: " * sprint(showerror, e)))
+    end
+    return Reference(json_struct)
 end
 
 function Reference(json_struct::ReferenceJSON)
@@ -359,26 +478,46 @@ function Reference(json_struct::ReferenceJSON)
         )
     end
     ref = new_reference()
+    isempty(json_struct.genomes) && throw(ReferenceError("Reference cannot have zero genomes"))
+    if isempty(json_struct.sequences)
+        throw(ReferenceError("Reference cannot have zero sequences"))
+    end
 
     # Parse genomes
     for (genomename, flags, sourcesdict) in json_struct.genomes
-        genome = Genome(genomename, from_bits(FlagSet, flags))
+        if !is_valid_bb_identifier(genomename)
+            throw(ReferenceError(invalid_identifier_message(genomename)))
+        end
+        flagset = @something try_from_bits(FlagSet, flags) throw(
+            ReferenceError(
+                "Genome \"$(genomename)\" has invalid flags $(flags), must be in 0:$(MAX_FLAG_BITS)"
+            ),
+        )
+        genome = Genome(genomename, flagset)
         add_genome!(ref, genome)
         for (source_name, source_length) in sourcesdict
             add_source!(genome, source_name, source_length)
         end
     end
 
-    # Parse taxonomy in a background task
-    tax_task = Threads.@spawn parse_taxonomy(ref.genomes, json_struct.taxmaps)
+    # Parse taxonomy in a background task. Exceptions thrown in a task are wrapped
+    # in a TaskFailedException when fetched, so we return a ReferenceError from the
+    # task instead, and throw it from this task.
+    tax_task = Threads.@spawn try
+        parse_taxonomy(ref.genomes, json_struct.taxmaps)
+    catch e
+        e isa ReferenceError ? e : rethrow()
+    end
 
     # Check for unique sources
-    source_by_name = Dict{String, Source{Genome}}()
+    source_by_name = Dict{String, Source}()
     for genome in ref.genomes, source in genome.sources
         if haskey(source_by_name, source.name)
-            error(
-                lazy"Duplicate source: \"$(source.name)\" belongs to both genome ",
-                lazy"\"$(source_by_name[source.name].genome.name)\" and \"$(genome.name)\".",
+            throw(
+                ReferenceError(
+                    "Duplicate source: \"$(source.name)\" belongs to both genome " *
+                        "\"$(source_by_name[source.name].genome.name)\" and \"$(genome.name)\".",
+                ),
             )
         end
         source_by_name[source.name] = source
@@ -386,34 +525,46 @@ function Reference(json_struct::ReferenceJSON)
 
     # Parse sequences
     for (seq_name, seq_length, targs) in json_struct.sequences
-        targets = map(targs) do (source_name, from, to)
+        if !is_valid_bb_identifier(seq_name)
+            throw(ReferenceError(invalid_identifier_message(seq_name)))
+        end
+        if seq_length < 1
+            throw(
+                ReferenceError("Sequence \"$(seq_name)\" has length $(seq_length), but must be at least 1")
+            )
+        end
+        targets = Target[]
+        for (source_name, from, to) in targs
             source = get(source_by_name, source_name, nothing)
             if source === nothing
-                error(
-                    lazy"Sequence \"$(seq_name)\" maps to source \"$(source_name)\", but no such source in reference",
+                throw(
+                    ReferenceError(
+                        "Sequence \"$(seq_name)\" maps to source \"$(source_name)\", but no such source in reference",
+                    ),
                 )
             end
-            (source, (Int(from), Int(to)))
+            push!(targets, (source, (Int(from), Int(to))))
         end
         seq = Sequence(seq_name, seq_length)
         add_sequence!(ref, seq, targets)
     end
 
     # Add taxonomy from the previously spawned task
-    copy!(ref.clades, fetch(tax_task)::Vector{Vector{Clade{Genome}}})
+    taxonomy = fetch(tax_task)::Union{ReferenceError, Vector{Vector{Clade}}}
+    taxonomy isa ReferenceError && throw(taxonomy)
+    copy!(ref.clades, taxonomy)
 
     # Finalize the reference
     return finish!(ref)
 end
 
-function save(io::IO, ref::Reference)
-    json_dict = Dict{String, Any}()
-    json_dict["version"] = JSON_VERSION
+# The JSON representation of a reference. Loading it with `Reference(::ReferenceJSON)`
+# creates a reference equal to `ref`.
+function ReferenceJSON(ref::Reference)
     # Genomes
     genomes::GENOMES_JSON_T = [
         (genome.name, Int(genome.flags.x), [(s.name, s.length) for s in genome.sources]) for genome in ref.genomes
     ]
-    json_dict["genomes"] = genomes
 
     # Sequences
     sequences::SEQUENCES_JSON_T = [
@@ -424,12 +575,9 @@ function save(io::IO, ref::Reference)
         ) for (seq, targets) in ref.targets
     ]
 
-    json_dict["sequences"] = sequences
-
     # Taxmaps
     taxmaps::TAXMAPS_JSON_T =
-        [[(genome.name, genome.parent.name) for genome in ref.genomes]]
-    json_dict["taxmaps"] = taxmaps
+        [[(genome.name, parent_clade(genome).name) for genome in ref.genomes]]
 
     for clades in ref.clades
         length(clades) == 1 && isnothing(only(clades).parent) && break
@@ -441,8 +589,10 @@ function save(io::IO, ref::Reference)
         end
     end
 
-    return JSON.json(io, json_dict)
+    return ReferenceJSON(JSON_VERSION, genomes, sequences, taxmaps)
 end
+
+save(io::IO, ref::Reference) = JSON.json(io, ReferenceJSON(ref))
 
 # Invariants for the input list:
 # The input is a vector of ranks, consisting of (child, parent) names
@@ -453,29 +603,36 @@ end
 function parse_taxonomy(
         genomes::Set{Genome},
         taxmaps::Vector{Vector{Tuple{String, String}}},
-    )::Vector{Vector{Clade{Genome}}}
-    result = Vector{Vector{Clade{Genome}}}()
+    )::Vector{Vector{Clade}}
+    result = Vector{Vector{Clade}}()
     isempty(genomes) && isempty(taxmaps) && return result
     child_by_name = Dict{String, Node}(g.name => g for g in genomes)
     assigned_children_names = Set{String}()
     parent_by_name = empty(child_by_name)
     for (rank, taxmap) in enumerate(taxmaps)
-        cladeset = Clade{Genome}[]
+        cladeset = Clade[]
         empty!(assigned_children_names)
         for (child_name, parent_name) in taxmap
-            child_name ∈ assigned_children_names && error(
-                lazy"At rank $(rank), child \"$(child_name)\" is present more than once.",
-            )
+            if child_name ∈ assigned_children_names
+                throw(ReferenceError("At rank $(rank), child \"$(child_name)\" is present more than once."))
+            end
             # Get child
             child = get(child_by_name, child_name, nothing)
-            child === nothing && error(
-                lazy"At rank $(rank), found child name \"$(child_name)\", but this does not exist " *
-                    "on the previous rank.",
-            )
+            if child === nothing
+                throw(
+                    ReferenceError(
+                        "At rank $(rank), found child name \"$(child_name)\", but this does not exist " *
+                            "on the previous rank.",
+                    ),
+                )
+            end
             # Create parent if it does not already exist
             parent =
-                get(parent_by_name, parent_name, nothing)::Union{Clade{Genome}, Nothing}
+                get(parent_by_name, parent_name, nothing)::Union{Clade, Nothing}
             if parent === nothing
+                if !is_valid_bb_identifier(parent_name)
+                    throw(ReferenceError(invalid_identifier_message(parent_name)))
+                end
                 parent = Clade(parent_name, child)
                 parent_by_name[parent_name] = parent
                 push!(cladeset, parent)
@@ -486,7 +643,7 @@ function parse_taxonomy(
         end
         if length(assigned_children_names) != length(child_by_name)
             missing_child = first(setdiff(keys(child_by_name), assigned_children_names))
-            error(lazy"At rank $(rank), child $(missing_child) has no parent")
+            throw(ReferenceError("At rank $(rank), child \"$(missing_child)\" has no parent"))
         end
         parent_by_name, child_by_name = child_by_name, parent_by_name
         empty!(parent_by_name)

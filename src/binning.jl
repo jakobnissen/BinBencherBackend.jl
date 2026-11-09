@@ -128,7 +128,7 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
         if nc isa Integer
             print(io, "\n  NC genomes:  ", nc)
         end
-        npb = n_passing_bins(x, 0.9, 0.95)
+        npb = extract_if_present(x, x.bin_genomes[1], 0.9, 0.95)
         if npb isa Integer
             print(io, "\n  HQ bins:     ", npb)
         end
@@ -159,30 +159,32 @@ function Base.show(io::IO, ::MIME"text/plain", x::Binning)
     end
 end
 
-struct RecallTooHigh end
-struct PrecisionTooHigh end
-struct RankOutOfRange end
-struct ThresholdError
-    x::Union{RecallTooHigh, PrecisionTooHigh, RankOutOfRange}
-end
+const DEFAULT_THRESHOLD_ATOL = 1.0e-6
 
 """
-    n_recovered(::Binning, recall, precision; level=0, assembly=false)::Integer
+    n_recovered(::Binning, recall, precision; level=0, assembly=false, atol=1e-6)::Integer
 
 Return the number of genomes or clades reconstructed in the `Binning` at the given recall
-and precision levels.
+and precision thresholds.
 If `assembly` is set, return the number of assemblies reconstructed instead.
 The argument `level` sets the taxonomic rank: 0 for `Genome` (or assemblies).
 
+`recall` and `precision` must each be within `atol` of one of the thresholds the
+`Binning` was benchmarked with (`binning.recalls` and `binning.precisions`),
+else an `ArgumentError` is thrown.
+To get bounds for thresholds between these, use [`n_recovered_bounds`](@ref).
+
+See also: [`n_passing_bins`](@ref)
+
 # Examples
 ```jldoctest
-julia> n_recovered(binning, 0.4, 0.71)
+julia> n_recovered(binning, 0.6, 0.8)
 1
 
-julia> n_recovered(binning, 0.4, 0.71; assembly=true)
+julia> n_recovered(binning, 0.6, 0.8; assembly=true)
 2
 
-julia> n_recovered(binning, 0.4, 0.71; assembly=true, level=2)
+julia> n_recovered(binning, 0.6, 0.8; assembly=true, level=2)
 1
 ```
 """
@@ -192,26 +194,73 @@ function n_recovered(
         precision::Real;
         level::Integer = 0,
         assembly::Bool = false,
-    )::Union{Integer, ThresholdError}
-    matrices = assembly ? binning.recovered_asms : binning.recovered_genomes
-    return extract_from_matrix(binning, recall, precision, matrices, level)
+        atol::Real = DEFAULT_THRESHOLD_ATOL,
+    )::Int
+    m = get_matrix(assembly ? binning.recovered_asms : binning.recovered_genomes, level)
+    return extract_exact(binning, m, recall, precision, atol)
 end
 
 """
-    n_passing_bins(::Binning, recall, precision; level=0, assembly::Bool=false)::Integer
+    n_recovered_bounds(
+        ::Binning, recall, precision; level=0, assembly=false, atol=1e-6
+    )::@NamedTuple{lower::Int, upper::Int}
+
+Return lower and upper bounds for the number of genomes or clades reconstructed in the
+`Binning` at the given recall and precision thresholds.
+
+The number is only known at the thresholds in `binning.recalls` and `binning.precisions`.
+For other values, the lower bound is the number at the nearest benchmarked thresholds
+above the given ones, and the upper bound is the number at the nearest thresholds below.
+A threshold within `atol` of a benchmarked threshold is taken to be that threshold.
+If both thresholds are benchmarked, `lower == upper`.
+
+Throws an `ArgumentError` if `recall` or `precision` is not in [0, 1], or is outside the
+range of benchmarked thresholds.
+Keyword arguments `level` and `assembly` are as for [`n_recovered`](@ref).
+
+# Examples
+```jldoctest
+julia> n_recovered_bounds(binning, 0.6, 0.8)
+(lower = 1, upper = 1)
+
+julia> n_recovered_bounds(binning, 0.65, 0.75; assembly=true)
+(lower = 1, upper = 2)
+```
+"""
+function n_recovered_bounds(
+        binning::Binning,
+        recall::Real,
+        precision::Real;
+        level::Integer = 0,
+        assembly::Bool = false,
+        atol::Real = DEFAULT_THRESHOLD_ATOL,
+    )::@NamedTuple{lower::Int, upper::Int}
+    m = get_matrix(assembly ? binning.recovered_asms : binning.recovered_genomes, level)
+    return extract_bounds(binning, m, recall, precision, atol)
+end
+
+"""
+    n_passing_bins(::Binning, recall, precision; level=0, assembly=false, atol=1e-6)::Integer
 
 Return the number of bins which correspond to any genome or clade at the given recall
-and precision levels.
+and precision thresholds.
 If `assembly` is set, a recall of 1.0 means a bin corresponds to a whole assembly,
 else it corresponds to a whole genome.
 The argument `level` sets the taxonomic rank: 0 for `Genome` (or assemblies).
 
+`recall` and `precision` must each be within `atol` of one of the thresholds the
+`Binning` was benchmarked with (`binning.recalls` and `binning.precisions`),
+else an `ArgumentError` is thrown.
+To get bounds for thresholds between these, use [`n_passing_bins_bounds`](@ref).
+
+See also: [`n_recovered`](@ref)
+
 # Examples
 ```jldoctest
-julia> n_passing_bins(binning, 0.4, 0.71)
+julia> n_passing_bins(binning, 0.6, 0.8)
 1
 
-julia> n_passing_bins(binning, 0.65, 0.71)
+julia> n_passing_bins(binning, 0.7, 0.8)
 0
 ```
 """
@@ -221,38 +270,139 @@ function n_passing_bins(
         precision::Real;
         level::Integer = 0,
         assembly::Bool = false,
-    )::Union{Integer, ThresholdError}
-    matrices = assembly ? binning.bin_asms : binning.bin_genomes
-    return extract_from_matrix(binning, recall, precision, matrices, level)
+        atol::Real = DEFAULT_THRESHOLD_ATOL,
+    )::Int
+    m = get_matrix(assembly ? binning.bin_asms : binning.bin_genomes, level)
+    return extract_exact(binning, m, recall, precision, atol)
 end
 
-function extract_from_matrix(
+"""
+    n_passing_bins_bounds(
+        ::Binning, recall, precision; level=0, assembly=false, atol=1e-6
+    )::@NamedTuple{lower::Int, upper::Int}
+
+Return lower and upper bounds for the number of bins which correspond to any genome or
+clade at the given recall and precision thresholds, which need not be ones the
+`Binning` was benchmarked with.
+The bounds are computed as for [`n_recovered_bounds`](@ref), and the keyword
+arguments are as for [`n_passing_bins`](@ref).
+
+# Examples
+```jldoctest
+julia> n_passing_bins_bounds(binning, 0.6, 0.8)
+(lower = 1, upper = 1)
+
+julia> n_passing_bins_bounds(binning, 0.65, 0.8)
+(lower = 0, upper = 1)
+```
+"""
+function n_passing_bins_bounds(
         binning::Binning,
         recall::Real,
-        precision::Real,
-        matrices::Vector{<:Matrix},
+        precision::Real;
         level::Integer = 0,
-    )::Union{Integer, ThresholdError}
-    inds = recall_precision_indices(binning, recall, precision)
-    inds isa ThresholdError && return inds
-    (ri, pi) = inds
+        assembly::Bool = false,
+        atol::Real = DEFAULT_THRESHOLD_ATOL,
+    )::@NamedTuple{lower::Int, upper::Int}
+    m = get_matrix(assembly ? binning.bin_asms : binning.bin_genomes, level)
+    return extract_bounds(binning, m, recall, precision, atol)
+end
+
+function get_matrix(matrices::Vector{<:Matrix}, level::Integer)::Matrix{Int}
     if level + 1 ∉ eachindex(matrices)
-        return ThresholdError(RankOutOfRange())
+        throw(
+            ArgumentError(
+                "Level $level is out of range: must be in 0:$(length(matrices) - 1)"
+            )
+        )
     end
-    m = matrices[level + 1]
+    return matrices[level + 1]
+end
+
+function extract_exact(
+        binning::Binning,
+        m::Matrix{Int},
+        recall::Real,
+        precision::Real,
+        atol::Real,
+    )::Int
+    ri = exact_threshold_index(binning.recalls, recall, "Recall", atol)
+    pi = exact_threshold_index(binning.precisions, precision, "Precision", atol)
     return m[pi, ri]
 end
 
-function recall_precision_indices(
+function extract_bounds(
         binning::Binning,
+        m::Matrix{Int},
         recall::Real,
         precision::Real,
-    )::Union{Tuple{Int, Int}, ThresholdError}
-    ri = searchsortedfirst(binning.recalls, recall)
-    ri > length(binning.recalls) && return ThresholdError(RecallTooHigh())
-    pi = searchsortedfirst(binning.precisions, precision)
-    pi > length(binning.precisions) && return ThresholdError(PrecisionTooHigh())
-    return (ri, pi)
+        atol::Real,
+    )::@NamedTuple{lower::Int, upper::Int}
+    (rlo, rhi) = bounding_threshold_indices(binning.recalls, recall, "Recall", atol)
+    (plo, phi) = bounding_threshold_indices(binning.precisions, precision, "Precision", atol)
+    # Counts can only decrease when either threshold increases
+    return (; lower = m[phi, rhi], upper = m[plo, rlo])
+end
+
+function check_unit_interval(x::Real, name::String)
+    return if !(0 ≤ x ≤ 1)
+        throw(ArgumentError("$name threshold $x is not in [0, 1]"))
+    end
+end
+
+# Index of the threshold within `atol` of `x`, or `nothing` if there is none.
+function find_threshold_index(
+        thresholds::Vector{Float64},
+        x::Real,
+        atol::Real,
+    )::Union{Int, Nothing}
+    i = searchsortedfirst(thresholds, x - atol)
+    return if i ≤ lastindex(thresholds) && thresholds[i] ≤ x + atol
+        i
+    else
+        nothing
+    end
+end
+
+function exact_threshold_index(
+        thresholds::Vector{Float64},
+        x::Real,
+        name::String,
+        atol::Real,
+    )::Int
+    check_unit_interval(x, name)
+    i = find_threshold_index(thresholds, x, atol)
+    if isnothing(i)
+        throw(
+            ArgumentError(
+                "$name threshold $x is not one of the benchmarked thresholds $thresholds. " *
+                    "Use the `_bounds` function variant for other thresholds.",
+            )
+        )
+    end
+    return i
+end
+
+# Indices of the nearest thresholds at or below, and at or above `x`.
+function bounding_threshold_indices(
+        thresholds::Vector{Float64},
+        x::Real,
+        name::String,
+        atol::Real,
+    )::Tuple{Int, Int}
+    check_unit_interval(x, name)
+    i = find_threshold_index(thresholds, x, atol)
+    isnothing(i) || return (i, i)
+    if x < first(thresholds) || x > last(thresholds)
+        throw(
+            ArgumentError(
+                "$name threshold $x is outside the range of benchmarked thresholds " *
+                    "[$(first(thresholds)), $(last(thresholds))]",
+            )
+        )
+    end
+    hi = searchsortedfirst(thresholds, x)
+    return (hi - 1, hi)
 end
 
 """
@@ -287,9 +437,21 @@ function print_matrix(io::IO, x::Binning; level::Integer = 0, assembly::Bool = f
     return
 end
 
-function n_nc(x::Binning)::Union{Int, ThresholdError}
-    return extract_from_matrix(x, 0.9, 0.95, x.recovered_genomes, 0)
+# Count at the given thresholds, or `nothing` if they were not benchmarked.
+function extract_if_present(
+        x::Binning,
+        m::Matrix{Int},
+        recall::Real,
+        precision::Real,
+    )::Union{Int, Nothing}
+    ri = find_threshold_index(x.recalls, recall, DEFAULT_THRESHOLD_ATOL)
+    pi = find_threshold_index(x.precisions, precision, DEFAULT_THRESHOLD_ATOL)
+    (isnothing(ri) || isnothing(pi)) && return nothing
+    return m[pi, ri]
 end
+
+# Number of near-complete genomes, or `nothing` if the thresholds were not benchmarked
+n_nc(x::Binning)::Union{Int, Nothing} = extract_if_present(x, x.recovered_genomes[1], 0.9, 0.95)
 
 n_bins(x::Binning) = length(x.bins)
 
@@ -333,8 +495,17 @@ function Binning(
         filter_genomes::Function = Returns(true),
         filter_bins::Function = Returns(true),
     )
-    (idxs_by_binname, is_disjoint) = parse_bins(io, Dict, ref, binsplit_separator)
-    disjoint && !is_disjoint && throw_disjoint_error()
+    (idxs_by_binname, first_non_disjoint) = parse_bins(io, Dict, ref, binsplit_separator)
+    is_disjoint = first_non_disjoint === nothing
+    if disjoint && !is_disjoint
+        (line_number, seqname) = first_non_disjoint
+        throw(
+            BinningError(
+                "Sequence \"$(seqname)\" is present in multiple bins, but `disjoint` is set to `true`",
+                line_number,
+            ),
+        )
+    end
     filter!(idxs_by_binname) do (_, idxs)
         length(idxs) ≥ min_seqs &&
             sum((length(first(ref.targets[i])) for i in idxs); init = 0) ≥ min_size
@@ -445,7 +616,7 @@ julia> gs = gold_standard(ref);
 julia> gs isa Binning
 true
 
-julia> n_recovered(gs, 0.4, 0.71) >= n_recovered(binning, 0.4, 0.71)
+julia> n_recovered(gs, 0.6, 0.8) >= n_recovered(binning, 0.6, 0.8)
 true
 ```
 
@@ -478,7 +649,7 @@ function gold_standard(
     # else all the genomes it maps to.
     sequences_of_genome = Dict{Genome, Vector{Sequence}}()
     for sequence in sequences
-        targets = last(ref.targets[ref.target_index_by_name[sequence.name]])
+        targets = last(ref.targets[sequence_index(ref, sequence)])
         isempty(targets) && continue
         # If disjoint, pick the genome where the sequence aligns to the longest span
         best_index = disjoint ? last(findmax(span_length, targets)) : 0
@@ -508,8 +679,10 @@ function gold_standard(
             empty!(seqs_by_sample)
             for sequence in seqs
                 splt = @inline split_once(sequence.name, binsplit_separator)
-                (prefix, _) = @something splt error(
-                    lazy"Seperator $binsplit_separator not found in seq name $(sequence.name)"
+                (prefix, _) = @something splt throw(
+                    ArgumentError(
+                        "Binsplit separator $(repr(binsplit_separator)) not found in sequence name $(repr(sequence.name))"
+                    )
                 )
                 index = ref.target_index_by_name[sequence.name]
                 push!(get!(valtype(seqs_by_sample), seqs_by_sample, prefix), index)
@@ -547,13 +720,13 @@ function validate_recall_precision(xs)::Vector{Float64}
     s = Set{Float64}()
     for x_ in xs
         x = Float64(x_)
-        x in s && error(lazy"Recall/precision value $x present multiple times")
+        x in s && throw(ArgumentError("Recall/precision value $x present multiple times"))
         if !isfinite(x) || x <= 0.0 || x > 1.0
-            error(lazy"Recall precision value $x is not finite in (0,1]")
+            throw(ArgumentError("Recall/precision value $x is not in (0,1]"))
         end
         push!(s, x)
     end
-    isempty(s) && error("Must provide at least 1 recall/precision value")
+    isempty(s) && throw(ArgumentError("Must provide at least 1 recall/precision value"))
     return sort!(collect(s))
 end
 
@@ -576,7 +749,7 @@ function benchmark(
     # given precision value. We could also have done it the other way.
     max_genome_recall_at_precision = Dict{Genome, Tuple{Vector{Float64}, Vector{Float64}}}()
     max_clade_recall_at_precision =
-        Dict{Clade{Genome}, Tuple{Vector{Float64}, Vector{Float64}}}()
+        Dict{Clade, Tuple{Vector{Float64}, Vector{Float64}}}()
     for genome in ref.genomes
         max_genome_recall_at_precision[genome] =
             (zeros(Float64, length(precisions)), zeros(Float64, length(precisions)))
@@ -616,8 +789,8 @@ function benchmark(
         for (genome, (; asmsize, foreign)) in bin.genomes
             (v_asm, v_genome) = max_genome_recall_at_precision[genome]
             precision = asmsize / (asmsize + foreign)
-            asm_recall = asmsize / genome.assembly_size
-            genome_recall = asmsize / genome.genome_size
+            asm_recall = asmsize / assembly_size(genome)
+            genome_recall = asmsize / genome_size(genome)
 
             # Find the index corresponding to the given precision. If the precision is lower than
             # the smallest precision in `precisions`, don't do anything

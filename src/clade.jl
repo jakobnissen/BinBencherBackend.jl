@@ -1,7 +1,5 @@
-# Type parameter G here is always Genome - I only make it parametric so I can have
-# mutually recursive types b/w Clade and Genome
 """
-    Clade{Genome}(name::AbstractString, child::Union{Clade{Genome}, Genome})
+    Clade(name::AbstractString, child::Union{Clade, Genome})
 
 A `Clade` represents any clade above `Genome`. Every `Genome` is expected to belong
 to the same number of clades, e.g. there may be exactly 7 levels of clades above every `Genome`.
@@ -22,38 +20,18 @@ Genus "F", 3 genomes
    └─ Genome(gC)
 
 julia> top_clade(ref).children
-2-element Vector{Clade{Genome}}:
+2-element Vector{Clade}:
  Species "D", 2 genomes
  Species "E", 1 genome
 ```
 """
-mutable struct Clade{G}
-    const name::String
-    const rank::Int
-    const children::Union{Vector{Clade{G}}, Vector{G}}
-    ngenomes::Int
-    parent::Union{Clade{G}, Nothing}
-
-    function Clade(name::String, child::Union{Clade{G}, G}) where {G}
-        check_valid_identifier(name)
-        (rank, ngenomes) = if child isa G
-            (@isinit(child.parent)) &&
-                existing_parent_error(child.name, name, child.parent.name)
-            (1, 1)
-        else
-            parent = child.parent
-            parent === nothing || existing_parent_error(child.name, name, parent.name)
-            (child.rank + 1, child.ngenomes)
-        end
-        instance = new{G}(name, rank, [child], ngenomes, nothing)
-        child.parent = instance
-        return instance
-    end
-end
+Clade
 
 @noinline function existing_parent_error(child_name, parent_name, other_parent_name)
-    error(
-        "Attempted to add parent \"$parent_name\" to child \"$child_name\", which already has parent \"$other_parent_name\"",
+    throw(
+        ArgumentError(
+            "Attempted to add parent \"$parent_name\" to child \"$child_name\", which already has parent \"$other_parent_name\"",
+        ),
     )
 end
 

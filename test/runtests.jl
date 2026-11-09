@@ -10,6 +10,8 @@ using BinBencherBackend:
     Genome,
     Clade,
     Source,
+    assembly_size,
+    genome_size,
     Sequence,
     ancestors,
     descends_from,
@@ -22,12 +24,18 @@ using BinBencherBackend:
     f1,
     recall_precision,
     n_recovered,
+    n_recovered_bounds,
+    n_passing_bins,
+    n_passing_bins_bounds,
     n_seqs,
     n_bins,
     subset,
     subset!,
     is_disjoint,
-    adjusted_rand_index
+    adjusted_rand_index,
+    BinBencherException,
+    ReferenceError,
+    BinningError
 
 using CodecZlib: GzipCompressor
 using JSON: JSON
@@ -282,6 +290,16 @@ end
     for i in 1:4, j in (i + 1):5
         @test refs[i] !== refs[j]
     end
+
+    # `subset` copies the reference without using `deepcopy`. Check it gives the
+    # same result as subsetting a deepcopy, and that it doesn't share mutable state.
+    test_is_same_reference(ref2, subset!(deepcopy(ref); sequences = seq_pred))
+    test_is_same_reference(ref5, subset!(deepcopy(ref); sequences = seq_pred, genomes = genome_pred))
+    copied = subset(ref)
+    test_is_same_reference(ref, copied)
+    @test isdisjoint(Set(objectid.(genomes(ref))), Set(objectid.(genomes(copied))))
+    @test top_clade(ref) !== top_clade(copied)
+    @test ref.target_index_by_name !== copied.target_index_by_name
     @test (ngenomes(ref3) + 1 == ngenomes(ref) == ngenomes(ref4) + 1 == ngenomes(ref5) + 1)
     @test (n_seqs(ref2) == n_seqs(ref4) == n_seqs(ref5))
     @test (n_seqs(ref) == n_seqs(ref3) != n_seqs(ref2))
@@ -331,9 +349,9 @@ end
     @test bins isa Binning
     @test n_bins(bins) == 6
 
-    @test n_recovered(bins, 0.4, 0.71) == 1
-    @test n_recovered(bins, 0.4, 0.71; assembly = true) == 2
-    @test n_recovered(bins, 0.4, 0.71; assembly = true, level = 2) == 1
+    @test n_recovered(bins, 0.6, 0.8) == 1
+    @test n_recovered(bins, 0.6, 0.8; assembly = true) == 2
+    @test n_recovered(bins, 0.6, 0.8; assembly = true, level = 2) == 1
 
     allgenomes = collect(genomes(ref))
     for (ir, recall) in enumerate(bins.recalls)
@@ -361,13 +379,13 @@ end
 
     # Test filter_genomes works
     empty_binning = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes = Returns(false))
-    @test n_recovered(empty_binning, 0.1, 0.1) == 0
+    @test n_recovered(empty_binning, 0.6, 0.6) == 0
     @test all(m -> all(iszero, m), empty_binning.recovered_asms)
     @test all(m -> all(iszero, m), empty_binning.recovered_genomes)
 
     only_virus = Binning(IOBuffer(CLUSTERS_STR), ref; filter_genomes = is_virus)
     @test BinBencherBackend.n_nc(only_virus) == 0
-    @test n_recovered(only_virus, 0.1, 0.1; assembly = true) == 1
+    @test n_recovered(only_virus, 0.6, 0.6; assembly = true) == 1
 
     # This test depends on the exact state of the ref and binning used
     @test all(m -> all(isone, m), only_virus.recovered_asms)
@@ -430,6 +448,73 @@ end
 
     # Test is disjoint
     @test is_disjoint(bins)
+end
+
+@testset "Threshold lookup" begin
+    ref = Reference(IOBuffer(REF_STR))
+    bins = Binning(IOBuffer(CLUSTERS_STR), ref)
+    rs = bins.recalls
+    ps = bins.precisions
+    cases = [
+        (n_recovered, n_recovered_bounds, false, bins.recovered_genomes),
+        (n_recovered, n_recovered_bounds, true, bins.recovered_asms),
+        (n_passing_bins, n_passing_bins_bounds, false, bins.bin_genomes),
+        (n_passing_bins, n_passing_bins_bounds, true, bins.bin_asms),
+    ]
+    for (exact, bounds, assembly, mats) in cases, (i, m) in enumerate(mats)
+        level = i - 1
+        for (ri, r) in enumerate(rs), (pi, p) in enumerate(ps)
+            @test exact(bins, r, p; level, assembly) == m[pi, ri]
+            @test bounds(bins, r, p; level, assembly) == (lower = m[pi, ri], upper = m[pi, ri])
+        end
+        # Between thresholds on both axes
+        for ri in 1:(length(rs) - 1), pi in 1:(length(ps) - 1)
+            r = (rs[ri] + rs[ri + 1]) / 2
+            p = (ps[pi] + ps[pi + 1]) / 2
+            @test bounds(bins, r, p; level, assembly) ==
+                (lower = m[pi + 1, ri + 1], upper = m[pi, ri])
+            # Exact on recall, between on precision
+            @test bounds(bins, rs[ri], p; level, assembly) ==
+                (lower = m[pi + 1, ri], upper = m[pi, ri])
+        end
+    end
+
+    # Default thresholds: 0.6, 0.7, 0.8, 0.9, 0.95, 0.99
+    @test n_recovered(bins, 0.6, 0.8) == bins.recovered_genomes[1][3, 1]
+    # Within tolerance
+    @test n_recovered(bins, 0.6 + 1.0e-7, 0.8 - 1.0e-7) == n_recovered(bins, 0.6, 0.8)
+    @test n_recovered(bins, 0.6f0, 0.8f0) == n_recovered(bins, 0.6, 0.8)
+    @test n_recovered_bounds(bins, 0.6f0, 0.8f0) == n_recovered_bounds(bins, 0.6, 0.8)
+    @test n_recovered(bins, 0.6 + 1.0e-4, 0.8; atol = 1.0e-3) == n_recovered(bins, 0.6, 0.8)
+    @test_throws ArgumentError n_recovered(bins, 0.6 + 1.0e-4, 0.8)
+
+    for f in [n_recovered, n_passing_bins]
+        # Not a benchmarked threshold
+        @test_throws ArgumentError f(bins, 0.65, 0.8)
+        @test_throws ArgumentError f(bins, 0.6, 0.85)
+        @test_throws ArgumentError f(bins, 0.4, 0.8)
+    end
+    for f in [n_recovered, n_passing_bins, n_recovered_bounds, n_passing_bins_bounds]
+        # Outside [0, 1]
+        @test_throws ArgumentError f(bins, -0.1, 0.8)
+        @test_throws ArgumentError f(bins, 0.6, 1.1)
+        @test_throws ArgumentError f(bins, NaN, 0.8)
+        # Bad level
+        @test_throws ArgumentError f(bins, 0.6, 0.8; level = -1)
+        @test_throws ArgumentError f(bins, 0.6, 0.8; level = length(bins.recovered_asms))
+    end
+    for f in [n_recovered_bounds, n_passing_bins_bounds]
+        # Outside the range of benchmarked thresholds
+        @test_throws ArgumentError f(bins, 0.5, 0.8)
+        @test_throws ArgumentError f(bins, 0.6, 0.5)
+        @test_throws ArgumentError f(bins, 0.995, 0.8)
+        @test_throws ArgumentError f(bins, 0.6, 1.0)
+    end
+
+    # n_nc is `nothing` when 0.9/0.95 were not benchmarked
+    @test BinBencherBackend.n_nc(bins) isa Int
+    tiny = Binning(IOBuffer(CLUSTERS_STR), ref; recalls = [0.5], precisions = [0.5])
+    @test isnothing(BinBencherBackend.n_nc(tiny))
 end
 
 @testset "Gold standard" begin
@@ -548,16 +633,16 @@ end
 
 @testset "ref.json specifics" begin
     ref = Reference(IOBuffer(REF_STR))
-    sources_by_name = Dict{String, Source{Genome}}()
+    sources_by_name = Dict{String, Source}()
     for genome in genomes(ref), source in genome.sources
         sources_by_name[source.name] = source
     end
     # Circular mapping
     C2 = sources_by_name["subjC2"]
     @test C2.length == 100
-    @test C2.assembly_size == 21 + 20 + 21
+    @test assembly_size(C2) == 21 + 20 + 21
 
-    @test sources_by_name["subjC3"].assembly_size == 0
+    @test assembly_size(sources_by_name["subjC3"]) == 0
 
     # Ref conforms to schema
     schema = JSONSchema.Schema(String(open(read, joinpath(DIR, "schema.json"))))
@@ -657,4 +742,170 @@ end
     big_a = Binning(IOBuffer("clustername\tcontigname\na\ts1\na\ts2\n"), big_ref)
     big_b = Binning(IOBuffer("clustername\tcontigname\na\ts1\nb\ts2\n"), big_ref)
     @test isapprox(adjusted_rand_index(big_a, big_b), 0.0; atol = 1.0e-9)
+end
+
+# Returns the exception thrown by `f`, or `nothing`
+function caught(f)
+    return try
+        f()
+        nothing
+    catch e
+        e
+    end
+end
+
+# Check that `f` throws an exception of type `T`, whose message contains `msg`
+function throws(f, ::Type{T}, msg::AbstractString) where {T}
+    e = caught(f)
+    return e isa T && occursin(msg, sprint(showerror, e))
+end
+
+@testset "Exceptions" begin
+    @test ReferenceError <: BinBencherException
+    @test BinningError <: BinBencherException
+    @test sprint(showerror, ReferenceError("abc")) == "ReferenceError: abc"
+    @test sprint(showerror, BinningError("abc", 5)) == "BinningError: line 5: abc"
+    @test sprint(showerror, BinningError("abc", nothing)) == "BinningError: abc"
+
+    @testset "Reference files" begin
+        # A small valid reference, with each part overridable
+        function ref_json(;
+                version = "2",
+                genomes = """[["A", 1, [["sA", 100]]], ["B", 1, [["sB", 100]]]]""",
+                sequences = """[["s1", 50, [["sA", 1, 50]]], ["s2", 50, [["sB", 1, 50]]]]""",
+                taxmaps = """[[["A", "X"], ["B", "X"]]]""",
+            )
+            return """{"version": $version, "genomes": $genomes, "sequences": $sequences, "taxmaps": $taxmaps}"""
+        end
+        load(; kwargs...) = Reference(IOBuffer(ref_json(; kwargs...)))
+        @test load() isa Reference
+
+        # Malformed JSON
+        for str in ["not json", "[1, 2]", "{\"version\": 2}", "{\"genomes\": []}"]
+            @test throws(() -> Reference(IOBuffer(str)), ReferenceError, "Malformed JSON")
+        end
+        @test throws(() -> load(; version = "\"2\""), ReferenceError, "integer field \"version\"")
+        @test throws(() -> load(; genomes = "5"), ReferenceError, "Malformed JSON")
+        @test throws(() -> load(; genomes = """[["A", "x", []]]"""), ReferenceError, "Malformed JSON")
+        @test throws(() -> load(; version = "1"), ReferenceError, "Found reference version 1")
+
+        # Empty
+        @test throws(() -> load(; genomes = "[]", taxmaps = "[]"), ReferenceError, "zero genomes")
+        @test throws(() -> load(; sequences = "[]"), ReferenceError, "zero sequences")
+
+        # Genomes and sources
+        @test throws(ReferenceError, "Invalid identifier") do
+            load(; genomes = """[["A\\r", 1, [["sA", 100]]], ["B", 1, [["sB", 100]]]]""")
+        end
+        for flags in [-1, 8]
+            @test throws(ReferenceError, "invalid flags $flags") do
+                load(; genomes = """[["A", $flags, [["sA", 100]]], ["B", 1, [["sB", 100]]]]""")
+            end
+        end
+        @test throws(ReferenceError, "Genome \"A\" is present more than once") do
+            load(; genomes = """[["A", 1, [["sA", 100]]], ["A", 1, [["sB", 100]]]]""")
+        end
+        @test throws(ReferenceError, "Invalid identifier") do
+            load(; genomes = """[["A", 1, [["s\\nA", 100]]], ["B", 1, [["sB", 100]]]]""")
+        end
+        @test throws(ReferenceError, "has length 0") do
+            load(; genomes = """[["A", 1, [["sA", 0]]], ["B", 1, [["sB", 100]]]]""")
+        end
+        @test throws(ReferenceError, "has source \"sA\" more than once") do
+            load(; genomes = """[["A", 1, [["sA", 100], ["sA", 10]]], ["B", 1, [["sB", 100]]]]""")
+        end
+        @test throws(ReferenceError, "Duplicate source") do
+            load(; genomes = """[["A", 1, [["sA", 100]]], ["B", 1, [["sA", 100]]]]""")
+        end
+
+        # Sequences
+        @test throws(ReferenceError, "Invalid identifier") do
+            load(; sequences = """[["s\\t1", 50, []]]""")
+        end
+        @test throws(ReferenceError, "has length 0") do
+            load(; sequences = """[["s1", 0, []]]""")
+        end
+        @test throws(ReferenceError, "no such source") do
+            load(; sequences = """[["s1", 50, [["sQ", 1, 50]]]]""")
+        end
+        @test throws(ReferenceError, "valid source indices are 1:100") do
+            load(; sequences = """[["s1", 50, [["sA", 60, 101]]]]""")
+        end
+        @test throws(ReferenceError, "Sequence \"s1\" is present more than once") do
+            load(; sequences = """[["s1", 50, []], ["s1", 50, []]]""")
+        end
+
+        # Taxonomy (parsed in another task)
+        @test throws(ReferenceError, "child \"A\" is present more than once") do
+            load(; taxmaps = """[[["A", "X"], ["A", "Y"], ["B", "X"]]]""")
+        end
+        @test throws(ReferenceError, "does not exist on the previous rank") do
+            load(; taxmaps = """[[["A", "X"], ["B", "X"], ["Q", "X"]]]""")
+        end
+        @test throws(ReferenceError, "child \"B\" has no parent") do
+            load(; taxmaps = """[[["A", "X"]]]""")
+        end
+        @test throws(ReferenceError, "Invalid identifier") do
+            load(; taxmaps = """[[["A", "X\\n"], ["B", "X\\n"]]]""")
+        end
+    end
+
+    @testset "Cluster files" begin
+        ref = Reference(IOBuffer(REF_STR))
+        header = "clustername\tcontigname\n"
+        load(str; kwargs...) = Binning(IOBuffer(str), ref; kwargs...)
+        # Returns (message, line) of the thrown BinningError, or nothing
+        function binning_error(str; kwargs...)
+            e = caught(() -> load(str; kwargs...))
+            return e isa BinningError ? (e.msg, e.line) : e
+        end
+
+        @test load(header * "a\ts1\n\nb\ts2\r\n") isa Binning
+        @test binning_error("") == ("Cluster file is empty, expected a header", 1)
+        (msg, line) = binning_error("name\tcontig\na\ts1\n")
+        @test occursin("Expected header", msg) && line == 1
+        @test binning_error(header * "a\ts1\na s2\n") ==
+            ("Expected two tab-separated fields, found one", 3)
+        @test binning_error(header * "a\ts1\n\na\ts2\tx\n") ==
+            ("Expected two tab-separated fields, found more", 4)
+        @test binning_error(header * "a\ts1\na\tsQ\n") ==
+            ("Sequence \"sQ\" is not in the reference", 3)
+        (msg, line) = binning_error(header * "a\ts1\na\rb\ts2\n")
+        @test occursin("Invalid identifier", msg) && line == 3
+        (msg, line) = binning_error(header * "a\ts1\n"; binsplit_separator = "C")
+        @test occursin("Binsplit separator", msg) && line == 2
+        @test binning_error(header * "a\ts1\nb\ts2\na\ts1\n"; disjoint = false) ==
+            ("Sequence \"s1\" is present multiple times in bin \"a\"", nothing)
+        @test binning_error(header * "a\ts1\nb\ts2\nb\ts1\n") == (
+            "Sequence \"s1\" is present in multiple bins, but `disjoint` is set to `true`", 4,
+        )
+    end
+
+    @testset "API misuse" begin
+        ref = Reference(IOBuffer(REF_STR))
+        g = Genome("g")
+        Clade("c", g)
+        for f in [
+                () -> Sequence("a\tb", 5),
+                () -> Sequence("a", 0),
+                () -> Genome("a\nb"),
+                () -> Source(g, "s", 0),
+                () -> Source(g, "s\r", 5),
+                () -> Clade("d", g),
+                () -> Bin("b", ref, Sequence[]),
+                () -> Bin("b", ref, [Sequence("sQ", 5)]),
+                () -> Bin("b", ref, [Sequence("s1", 25), Sequence("s1", 25)]),
+                () -> Binning(IOBuffer(CLUSTERS_STR), ref; recalls = [0.0]),
+                () -> Binning(IOBuffer(CLUSTERS_STR), ref; precisions = [0.5, 0.5]),
+                () -> Binning(IOBuffer(CLUSTERS_STR), ref; recalls = Float64[]),
+                () -> subset(ref; genomes = Returns(false)),
+                () -> subset(ref; sequences = Returns(false)),
+                () -> gold_standard(ref; binsplit_separator = "QQ"),
+                () -> gold_standard(ref, [Sequence("sQ", 5)]),
+            ]
+            @test caught(f) isa ArgumentError
+        end
+        bin = Bin("b", ref, [Sequence("s1", 25)])
+        @test caught(() -> Binning([bin, bin], ref)) isa ArgumentError
+    end
 end
